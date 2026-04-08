@@ -190,7 +190,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <Button asChild>
-              <Link href="/dashboard/subscribe">
+              <Link href="/dashboard/subscribe" className="text-white font-bold">
                 عرض الباقات
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -210,7 +210,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <Button 
-              className="w-full" 
+              className="w-full text-white " 
               disabled={!subscription || !canRate}
               asChild={subscription && canRate ? true : undefined}
             >

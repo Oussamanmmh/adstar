@@ -289,7 +289,7 @@ export default function NetworkDepositPage() {
               </div>
 
               <Button
-                className="w-full"
+                className="w-full text-white hover:cursor-pointer"
                 onClick={() => setStep("txhash")}
                 disabled={!config.adminWallet}
               >

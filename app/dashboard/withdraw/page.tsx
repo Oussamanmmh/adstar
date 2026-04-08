@@ -326,14 +326,14 @@ export default function WithdrawPage() {
                     />
                   </Field>
 
-                  <Button type="submit" className="w-full" disabled={isFormInvalid}>
+                  <Button type="submit" className="w-full text-white" disabled={isFormInvalid}>
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         جار إرسال الطلب...
                       </>
                     ) : (
-                      "Submit Withdrawal Request"
+                      "أرسل طلب السحب"
                     )}
                   </Button>
                 </form>

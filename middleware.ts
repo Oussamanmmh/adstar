@@ -60,8 +60,9 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = pathname.startsWith("/auth")
   const isDashboardRoute = pathname.startsWith("/dashboard")
   const isAdminRoute = pathname.startsWith("/admin")
+  const isProfileRoute = pathname.startsWith("/profile")
 
-  if ((isDashboardRoute || isAdminRoute) && !user) {
+  if ((isDashboardRoute || isAdminRoute || isProfileRoute) && !user) {
     return NextResponse.redirect(new URL("/auth/login", request.url))
   }
 
@@ -93,5 +94,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/admin/:path*", "/auth/:path*"],
+  matcher: ["/", "/dashboard/:path*", "/admin/:path*", "/profile/:path*", "/auth/:path*"],
 }

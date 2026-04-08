@@ -133,3 +133,40 @@
     @apply bg-background text-foreground;
   }
 }
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+
+    /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--background);
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Webkit (Chrome, Edge, Safari) */
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--background);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: var(--radius);
+    /* Creates a nice "floating" effect by matching the track background */
+    border: 3px solid var(--background);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+    /* Cyan accent on hover */
+  }
+}

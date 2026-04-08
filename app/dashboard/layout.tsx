@@ -27,7 +27,6 @@ import {
   Star, 
   LayoutDashboard, 
   Play, 
-  CreditCard, 
   Wallet, 
   LogOut,
   User,
@@ -97,6 +96,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const isWalletRoute = pathname.startsWith("/dashboard/withdraw") || pathname.startsWith("/dashboard/deposit")
+  const isProfileRoute = pathname.startsWith("/profile")
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -162,7 +162,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="text-sm font-medium hidden sm:block">{user.fullName}</div>
               <div className="text-xs text-primary font-semibold">${user.balance_usdt.toFixed(2)}</div>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="hidden md:flex">
+            <Button variant={isProfileRoute ? "secondary" : "ghost"} size="icon" asChild className="hidden md:flex">
+              <Link href="/profile" aria-label="الملف الشخصي">
+                <User className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="hidden md:flex hover:cursor-pointer">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
@@ -256,14 +261,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </DropdownMenuContent>
           </DropdownMenu>
           
-          {/* Me / Profile with logout */}
-          <button
-            onClick={handleLogout}
+          <Link
+            href="/profile"
             className="flex flex-col items-center py-2 px-3 min-w-15"
           >
-            <User className="h-6 w-6 text-muted-foreground" />
-            <span className="text-xs mt-1 text-muted-foreground">حسابي</span>
-          </button>
+            <User className={`h-6 w-6 ${isProfileRoute ? 'text-primary' : 'text-muted-foreground'}`} />
+            <span className={`text-xs mt-1 ${isProfileRoute ? 'text-primary font-medium' : 'text-muted-foreground'}`}>حسابي</span>
+          </Link>
         </div>
       </nav>
 
