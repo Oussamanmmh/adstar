@@ -1,4 +1,9 @@
 // User/Profile type
+
+export type Network = 'trc20' | 'bep20'
+
+
+
 export interface User {
   id: string
   email?: string
@@ -84,4 +89,42 @@ export interface DashboardStats {
   pendingWithdrawals: number
   totalPaidOut: number
   totalEarnings: number
+}
+
+
+
+
+export interface NetworkConfig {
+  id: Network
+  name: string
+  label: string
+  icon: string
+  adminWalletKey: string   // env var name — value accessed server-side only
+  usdtContract: string
+  decimals: number
+  explorerTxUrl: string
+  warnings: string[]
+}
+ 
+export interface DepositVerificationResult {
+  success: boolean
+  amount?: number
+  error?: string
+}
+ 
+export interface Deposit {
+  id: string
+  user_id: string
+  network: Network
+  tx_hash: string
+  amount_usdt: number
+  status: 'confirmed' | 'failed'
+  confirmed_at: string
+  created_at: string
+}
+ 
+export interface SubmitDepositResult {
+  success: boolean
+  amount?: number
+  error?: string
 }

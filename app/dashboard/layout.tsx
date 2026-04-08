@@ -7,6 +7,14 @@ import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -22,14 +30,31 @@ import {
   CreditCard, 
   Wallet, 
   LogOut,
-  User
+  User,
+  ArrowDownToLine,
+  HandCoins,
+  ChevronDown
 } from "lucide-react"
 
 const navItems = [
   { href: "/dashboard", label: "الرئيسية", icon: LayoutDashboard },
   { href: "/dashboard/rate", label: "التقييم", icon: Play },
   { href: "/dashboard/subscribe", label: "VIP", icon: Star, isCenter: true },
-  { href: "/dashboard/withdraw", label: "المحفظة", icon: Wallet },
+]
+
+const walletActions = [
+  {
+    href: "/dashboard/deposit",
+    label: "إيداع",
+    description: "شحن الرصيد عبر TRC20 أو BEP20",
+    icon: ArrowDownToLine,
+  },
+  {
+    href: "/dashboard/withdraw",
+    label: "سحب",
+    description: "إرسال أرباحك إلى محفظتك",
+    icon: HandCoins,
+  },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -71,6 +96,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.refresh()
   }
 
+  const isWalletRoute = pathname.startsWith("/dashboard/withdraw") || pathname.startsWith("/dashboard/deposit")
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top Header - Simplified */}
@@ -92,6 +119,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </Link>
               </Button>
             ))}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant={isWalletRoute ? "secondary" : "ghost"} size="sm" className="gap-2">
+                  <Wallet className="h-4 w-4" />
+                  المحفظة
+                  <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-72">
+                <DropdownMenuLabel className="text-right">إدارة المحفظة</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {walletActions.map((action) => {
+                  const Icon = action.icon
+                  const active = pathname.startsWith(action.href)
+                  return (
+                    <DropdownMenuItem key={action.href} asChild className="p-0 focus:bg-transparent">
+                      <Link
+                        href={action.href}
+                        className={`flex w-full items-start gap-3 rounded-md p-3 transition-colors ${
+                          active ? "bg-primary/10" : "hover:bg-muted"
+                        }`}
+                      >
+                        <div className={`mt-0.5 rounded-md p-2 ${active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-semibold ${active ? "text-primary" : "text-foreground"}`}>{action.label}</p>
+                          <p className="text-xs text-muted-foreground">{action.description}</p>
+                        </div>
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -146,7 +209,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center py-2 px-3 min-w-[60px]"
+                className="flex flex-col items-center py-2 px-3 min-w-15"
               >
                 <Icon className={`h-6 w-6 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
                 <span className={`text-xs mt-1 ${isActive ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
@@ -155,11 +218,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             )
           })}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex flex-col items-center py-2 px-3 min-w-15">
+                <Wallet className={`h-6 w-6 ${isWalletRoute ? 'text-primary' : 'text-muted-foreground'}`} />
+                <span className={`text-xs mt-1 ${isWalletRoute ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                  المحفظة
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="center" className="w-[min(92vw,22rem)] mb-2">
+              <DropdownMenuLabel className="text-right">إدارة المحفظة</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {walletActions.map((action) => {
+                const Icon = action.icon
+                const active = pathname.startsWith(action.href)
+                return (
+                  <DropdownMenuItem key={action.href} asChild className="p-0 focus:bg-transparent">
+                    <Link
+                      href={action.href}
+                      className={`flex w-full items-start gap-3 rounded-md p-3 transition-colors ${
+                        active ? "bg-primary/10" : "hover:bg-muted"
+                      }`}
+                    >
+                      <div className={`mt-0.5 rounded-md p-2 ${active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-semibold ${active ? "text-primary" : "text-foreground"}`}>{action.label}</p>
+                        <p className="text-xs text-muted-foreground">{action.description}</p>
+                      </div>
+                    </Link>
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           {/* Me / Profile with logout */}
           <button
             onClick={handleLogout}
-            className="flex flex-col items-center py-2 px-3 min-w-[60px]"
+            className="flex flex-col items-center py-2 px-3 min-w-15"
           >
             <User className="h-6 w-6 text-muted-foreground" />
             <span className="text-xs mt-1 text-muted-foreground">حسابي</span>
