@@ -61,6 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
   const pathname = usePathname()
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -80,6 +81,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     )
   }
 
+  if (isLoggingOut) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner className="h-8 w-8" />
+      </div>
+    )
+  }
+
   if (!isAuthenticated || !user) {
     return null
   }
@@ -89,10 +98,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const confirmLogout = async () => {
-    setIsLogoutDialogOpen(false)
-    await logout()
-    router.replace("/")
-    router.refresh()
+    if (isLoggingOut) return
+
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      router.replace("/auth/login")
+      router.refresh()
+    } finally {
+      setIsLogoutDialogOpen(false)
+      setIsLoggingOut(false)
+    }
   }
 
   const isWalletRoute = pathname.startsWith("/dashboard/withdraw") || pathname.startsWith("/dashboard/deposit")
@@ -281,9 +297,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex justify-end gap-3">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmLogout} className="bg-destructive hover:bg-destructive/90 text-white">
-              تسجيل الخروج
+            <AlertDialogCancel disabled={isLoggingOut}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLogout} disabled={isLoggingOut} className="bg-destructive hover:bg-destructive/90 text-white">
+              {isLoggingOut ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="h-4 w-4" />
+                  جارٍ تسجيل الخروج...
+                </span>
+              ) : (
+                "تسجيل الخروج"
+              )}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>

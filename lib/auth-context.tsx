@@ -184,6 +184,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const startAdminLogin = useCallback(
     async (email: string, password: string): Promise<AdminLoginStartResult> => {
       const normalizedEmail = email.trim().toLowerCase()
+      const callbackUrl =
+        typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/admin` : undefined
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,
@@ -201,7 +204,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: normalizedEmail,
-        options: { shouldCreateUser: false },
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: callbackUrl,
+        },
       })
 
       await safeSignOut()

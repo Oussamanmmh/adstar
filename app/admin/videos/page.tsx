@@ -1,13 +1,21 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getVideos, createVideo, updateVideo, deleteVideo } from "@/lib/store"
+import {
+  getAdminVideos,
+  createAdminVideo,
+  updateAdminVideo,
+  deleteAdminVideo,
+  toggleAdminVideoStatus,
+  type AdminVideoRow,
+} from "@/lib/actions/admin"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,14 +27,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
-import { Plus, Pencil, Trash2, Video, GripVertical, ExternalLink } from "lucide-react"
-import type { Video as VideoType } from "@/lib/types"
+import { Plus, Pencil, Trash2, Video, GripVertical, ExternalLink, Loader2 } from "lucide-react"
 
 export default function AdminVideosPage() {
-  const [videos, setVideos] = useState<VideoType[]>([])
+  const [videos, setVideos] = useState<AdminVideoRow[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingVideo, setEditingVideo] = useState<VideoType | null>(null)
+  const [editingVideo, setEditingVideo] = useState<AdminVideoRow | null>(null)
   const [deleteVideoId, setDeleteVideoId] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Form state
   const [title, setTitle] = useState("")
@@ -34,12 +43,21 @@ export default function AdminVideosPage() {
   const [isActive, setIsActive] = useState(true)
 
   useEffect(() => {
-    loadVideos()
+    void loadVideos()
   }, [])
 
-  function loadVideos() {
-    const allVideos = getVideos().sort((a, b) => a.orderIndex - b.orderIndex)
-    setVideos(allVideos)
+  async function loadVideos() {
+    setIsLoading(true)
+    const result = await getAdminVideos()
+
+    if (!result.success) {
+      toast.error(result.error)
+      setIsLoading(false)
+      return
+    }
+
+    setVideos(result.data)
+    setIsLoading(false)
   }
 
   function resetForm() {
@@ -53,10 +71,10 @@ export default function AdminVideosPage() {
     setIsAddDialogOpen(true)
   }
 
-  function handleOpenEditDialog(video: VideoType) {
+  function handleOpenEditDialog(video: AdminVideoRow) {
     setTitle(video.title)
-    setYoutubeUrl(video.youtubeUrl)
-    setIsActive(video.isActive)
+    setYoutubeUrl(video.youtube_url)
+    setIsActive(video.is_active)
     setEditingVideo(video)
   }
 
@@ -64,17 +82,10 @@ export default function AdminVideosPage() {
     setIsAddDialogOpen(false)
     setEditingVideo(null)
     resetForm()
+    setIsSubmitting(false)
   }
 
-  function extractThumbnail(url: string): string | undefined {
-    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)
-    if (match) {
-      return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`
-    }
-    return undefined
-  }
-
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
     if (!title.trim() || !youtubeUrl.trim()) {
@@ -82,46 +93,67 @@ export default function AdminVideosPage() {
       return
     }
 
-    const thumbnailUrl = extractThumbnail(youtubeUrl)
+    setIsSubmitting(true)
 
     if (editingVideo) {
-      // Update existing video
-      updateVideo(editingVideo.id, {
+      const result = await updateAdminVideo({
+        id: editingVideo.id,
         title: title.trim(),
         youtubeUrl: youtubeUrl.trim(),
-        thumbnailUrl,
         isActive,
       })
+
+      if (!result.success) {
+        toast.error(result.error)
+        setIsSubmitting(false)
+        return
+      }
+
       toast.success("تم تحديث الفيديو")
     } else {
-      // Create new video
-      const maxOrder = Math.max(0, ...videos.map(v => v.orderIndex))
-      createVideo({
+      const result = await createAdminVideo({
         title: title.trim(),
         youtubeUrl: youtubeUrl.trim(),
-        thumbnailUrl,
-        orderIndex: maxOrder + 1,
         isActive,
       })
+
+      if (!result.success) {
+        toast.error(result.error)
+        setIsSubmitting(false)
+        return
+      }
+
       toast.success("تمت إضافة الفيديو")
     }
 
     handleCloseDialog()
-    loadVideos()
+    await loadVideos()
   }
 
-  function handleDeleteVideo() {
+  async function handleDeleteVideo() {
     if (!deleteVideoId) return
 
-    deleteVideo(deleteVideoId)
+    const result = await deleteAdminVideo({ id: deleteVideoId })
+
+    if (!result.success) {
+      toast.error(result.error)
+      return
+    }
+
     toast.success("تم حذف الفيديو")
     setDeleteVideoId(null)
-    loadVideos()
+    await loadVideos()
   }
 
-  function handleToggleActive(videoId: string, active: boolean) {
-    updateVideo(videoId, { isActive: active })
-    loadVideos()
+  async function handleToggleActive(videoId: string, active: boolean) {
+    const result = await toggleAdminVideoStatus({ id: videoId, isActive: active })
+
+    if (!result.success) {
+      toast.error(result.error)
+      return
+    }
+
+    await loadVideos()
   }
 
   function getYoutubeId(url: string): string | null {
@@ -148,7 +180,13 @@ export default function AdminVideosPage() {
           <CardDescription>إجمالي الفيديوهات: {videos.length}</CardDescription>
         </CardHeader>
         <CardContent>
-          {videos.length === 0 ? (
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : videos.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Video className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>لا توجد فيديوهات بعد</p>
@@ -157,7 +195,7 @@ export default function AdminVideosPage() {
           ) : (
             <div className="space-y-3">
               {videos.map((video) => {
-                const youtubeId = getYoutubeId(video.youtubeUrl)
+                const youtubeId = getYoutubeId(video.youtube_url)
                 
                 return (
                   <div 
@@ -167,10 +205,10 @@ export default function AdminVideosPage() {
                     <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab" />
                     
                     {/* Thumbnail */}
-                    <div className="w-24 h-14 rounded overflow-hidden bg-muted flex-shrink-0">
-                      {video.thumbnailUrl ? (
+                    <div className="w-24 h-14 rounded overflow-hidden bg-muted shrink-0">
+                      {video.thumbnail_url ? (
                         <img 
-                          src={video.thumbnailUrl} 
+                          src={video.thumbnail_url} 
                           alt={video.title}
                           className="w-full h-full object-cover"
                         />
@@ -185,10 +223,10 @@ export default function AdminVideosPage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{video.title}</div>
                       <div className="text-sm text-muted-foreground flex items-center gap-2">
-                        <span className="truncate">{video.youtubeUrl}</span>
+                        <span className="truncate">{video.youtube_url}</span>
                         {youtubeId && (
                           <a 
-                            href={video.youtubeUrl} 
+                            href={video.youtube_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="hover:text-primary"
@@ -204,7 +242,7 @@ export default function AdminVideosPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">نشط</span>
                         <Switch
-                          checked={video.isActive}
+                          checked={video.is_active}
                           onCheckedChange={(checked) => handleToggleActive(video.id, checked)}
                         />
                       </div>
@@ -275,8 +313,17 @@ export default function AdminVideosPage() {
               <Button type="button" variant="outline" className="flex-1" onClick={handleCloseDialog}>
                 إلغاء
               </Button>
-              <Button type="submit" className="flex-1">
-                {editingVideo ? "حفظ التغييرات" : "إضافة الفيديو"}
+              <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    جارٍ الحفظ...
+                  </span>
+                ) : editingVideo ? (
+                  "حفظ التغييرات"
+                ) : (
+                  "إضافة الفيديو"
+                )}
               </Button>
             </div>
           </form>

@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { getDashboardStats, getPendingSubscriptions, getPendingWithdrawals } from "@/lib/store"
+import { getAdminDashboardData } from "@/lib/actions/admin"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { 
   Users, 
+  Package,
   CreditCard, 
   Wallet, 
   DollarSign, 
@@ -18,16 +20,66 @@ import type { DashboardStats } from "@/lib/types"
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [pendingSubsCount, setPendingSubsCount] = useState(0)
-  const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    setStats(getDashboardStats())
-    setPendingSubsCount(getPendingSubscriptions().length)
-    setPendingWithdrawalsCount(getPendingWithdrawals().length)
+    async function loadData() {
+      setIsLoading(true)
+      const result = await getAdminDashboardData()
+
+      if (!result.success) {
+        setError(result.error)
+        setIsLoading(false)
+        return
+      }
+
+      setStats(result.data)
+      setError(null)
+      setIsLoading(false)
+    }
+
+    void loadData()
   }, [])
 
-  if (!stats) return null
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-9 w-48" />
+          <Skeleton className="mt-2 h-4 w-60" />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-20" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="mt-2 h-3 w-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !stats) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>تعذر تحميل لوحة الإدارة</CardTitle>
+          <CardDescription>{error ?? "حدث خطأ غير متوقع"}</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  const pendingSubsCount = stats.pendingSubscriptions
+  const pendingWithdrawalsCount = stats.pendingWithdrawals
 
   return (
     <div className="space-y-6">
@@ -163,11 +215,17 @@ export default function AdminDashboardPage() {
           <CardDescription>أكثر المهام الإدارية استخداماً</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Button variant="outline" asChild>
               <Link href="/admin/users">
                 <Users className="mr-2 h-4 w-4" />
                 إدارة المستخدمين
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/admin/packages">
+                <Package className="mr-2 h-4 w-4" />
+                إدارة الباقات
               </Link>
             </Button>
             <Button variant="outline" asChild>

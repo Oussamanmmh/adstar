@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getUsers, deleteUser } from "@/lib/store"
+import { getAdminUsers, type AdminUserRow } from "@/lib/actions/admin"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -14,47 +14,34 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
-import { Search, Trash2, Shield, User as UserIcon } from "lucide-react"
-import type { User } from "@/lib/types"
+import { Search, Shield, User as UserIcon } from "lucide-react"
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>([])
+  const [users, setUsers] = useState<AdminUserRow[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    loadUsers()
+    void loadUsers()
   }, [])
 
-  function loadUsers() {
-    const allUsers = getUsers().sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
-    setUsers(allUsers)
-  }
+  async function loadUsers() {
+    setIsLoading(true)
+    const result = await getAdminUsers()
 
-  function handleDeleteUser() {
-    if (!deleteUserId) return
+    if (!result.success) {
+      toast.error(result.error)
+      setIsLoading(false)
+      return
+    }
 
-    deleteUser(deleteUserId)
-    toast.success("تم حذف المستخدم")
-    loadUsers()
-    setDeleteUserId(null)
+    setUsers(result.data)
+    setIsLoading(false)
   }
 
   const filteredUsers = users.filter(user => 
-    user.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.full_name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
     (user.email ?? "").toLowerCase().includes(searchQuery.toLowerCase())
   )
 
@@ -70,7 +57,7 @@ export default function AdminUsersPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <CardTitle>كل المستخدمين</CardTitle>
-              <CardDescription>إجمالي المستخدمين: {users.length}</CardDescription>
+              <CardDescription>إجمالي المستخدمين: {isLoading ? "..." : users.length}</CardDescription>
             </div>
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -84,6 +71,13 @@ export default function AdminUsersPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -92,13 +86,12 @@ export default function AdminUsersPage() {
                   <TableHead>الرصيد</TableHead>
                   <TableHead>الدور</TableHead>
                   <TableHead>تاريخ الانضمام</TableHead>
-                  <TableHead className="text-right">الإجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                       لا يوجد مستخدمون
                     </TableCell>
                   </TableRow>
@@ -107,15 +100,15 @@ export default function AdminUsersPage() {
                     <TableRow key={user.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{user.fullName}</div>
+                          <div className="font-medium">{user.full_name || "بدون اسم"}</div>
                           <div className="text-sm text-muted-foreground">{user.email}</div>
                         </div>
                       </TableCell>
                       <TableCell className="font-medium">
-                        ${user.balance_usdt.toFixed(2)}
+                        ${Number(user.balance_usdt).toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        {user.isAdmin ? (
+                        {user.is_admin ? (
                           <Badge className="bg-primary/10 text-primary border-primary/20">
                             <Shield className="h-3 w-3 mr-1" />
                             مسؤول
@@ -128,17 +121,7 @@ export default function AdminUsersPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(user.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => setDeleteUserId(user.id)}
-                          disabled={user.isAdmin}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {new Date(user.created_at).toLocaleDateString("ar-EG")}
                       </TableCell>
                     </TableRow>
                   ))
@@ -146,26 +129,9 @@ export default function AdminUsersPage() {
               </TableBody>
             </Table>
           </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>حذف المستخدم</AlertDialogTitle>
-            <AlertDialogDescription>
-              هل أنت متأكد من حذف هذا المستخدم؟ لا يمكن التراجع عن هذا الإجراء.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-white hover:bg-destructive/90">
-              حذف
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

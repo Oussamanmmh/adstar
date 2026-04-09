@@ -31,28 +31,6 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const code = request.nextUrl.searchParams.get("code")
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-
-    if (!error) {
-      const {
-        data: { user: exchangedUser },
-      } = await supabase.auth.getUser()
-
-      if (exchangedUser) {
-        const { data: exchangedProfile } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", exchangedUser.id)
-          .maybeSingle()
-
-        const isAdminAfterExchange = !!exchangedProfile?.is_admin
-        return NextResponse.redirect(new URL(isAdminAfterExchange ? "/admin" : "/dashboard", request.url))
-      }
-    }
-  }
-
   const {
     data: { user },
   } = await supabase.auth.getUser()

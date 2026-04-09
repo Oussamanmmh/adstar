@@ -176,7 +176,7 @@ export default function ProfilePage() {
     try {
       await logout()
       toast.success('تم تسجيل الخروج بنجاح')
-      router.replace('/')
+      router.replace('/auth/login')
       router.refresh()
     } catch {
       toast.error('تعذر تسجيل الخروج، حاول مرة أخرى')
@@ -186,6 +186,14 @@ export default function ProfilePage() {
   }
 
   if (isLoading || (isAuthenticated && !user)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner className="h-8 w-8" />
+      </div>
+    )
+  }
+
+  if (isLoggingOut) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Spinner className="h-8 w-8" />
@@ -251,7 +259,7 @@ export default function ProfilePage() {
             onClick={handleLogout}
             disabled={isLoggingOut}
           >
-            <LogOut />
+            {isLoggingOut ? <Spinner className="h-4 w-4" /> : <LogOut />}
             {isLoggingOut ? 'جارٍ تسجيل الخروج...' : 'تسجيل الخروج'}
           </Button>
         </div>

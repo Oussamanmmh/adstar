@@ -19,6 +19,7 @@ import {
   Star, 
   LayoutDashboard, 
   Users, 
+  Package,
   CreditCard, 
   Wallet, 
   Video,
@@ -30,6 +31,7 @@ import {
 const navItems = [
   { href: "/admin", label: "الرئيسية", icon: LayoutDashboard },
   { href: "/admin/users", label: "المستخدمون", icon: Users },
+  { href: "/admin/packages", label: "الباقات", icon: Package },
   { href: "/admin/subscriptions", label: "الاشتراكات", icon: CreditCard, isCenter: true },
   { href: "/admin/withdrawals", label: "السحوبات", icon: Wallet },
   { href: "/admin/videos", label: "الفيديوهات", icon: Video },
@@ -40,6 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter()
   const pathname = usePathname()
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -59,6 +62,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
+  if (isLoggingOut) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner className="h-8 w-8" />
+      </div>
+    )
+  }
+
   if (!isAuthenticated || !user || !user.isAdmin) {
     return null
   }
@@ -68,10 +79,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const confirmLogout = async () => {
-    setIsLogoutDialogOpen(false)
-    await logout()
-    router.replace("/")
-    router.refresh()
+    if (isLoggingOut) return
+
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      router.replace("/auth/login")
+      router.refresh()
+    } finally {
+      setIsLogoutDialogOpen(false)
+      setIsLoggingOut(false)
+    }
   }
 
   return (
@@ -80,9 +98,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
         <div className="flex items-center justify-between px-4 py-3">
           <Link href="/admin" className="flex items-center gap-2">
-            <Star className="h-6 w-6 text-primary fill-primary" />
-            <span className="text-lg font-bold">Adstar</span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
               <Shield className="h-3 w-3" />
               إدارة
             </span>
@@ -157,7 +173,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center py-2 px-2 min-w-[50px]"
+                className="flex flex-col items-center py-2 px-2 min-w-12.5"
               >
                 <Icon className={`h-5 w-5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
                 <span className={`text-xs mt-1 ${isActive ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
@@ -170,7 +186,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Me / Profile with logout */}
           <button
             onClick={handleLogout}
-            className="flex flex-col items-center py-2 px-2 min-w-[50px]"
+            className="flex flex-col items-center py-2 px-2 min-w-12.5"
           >
             <User className="h-5 w-5 text-muted-foreground" />
             <span className="text-xs mt-1 text-muted-foreground">حسابي</span>
@@ -188,9 +204,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex justify-end gap-3">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmLogout} className="bg-destructive hover:bg-destructive/90 text-white">
-              تسجيل الخروج
+            <AlertDialogCancel disabled={isLoggingOut}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLogout} disabled={isLoggingOut} className="bg-destructive hover:bg-destructive/90 text-white">
+              {isLoggingOut ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="h-4 w-4" />
+                  جارٍ تسجيل الخروج...
+                </span>
+              ) : (
+                "تسجيل الخروج"
+              )}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>

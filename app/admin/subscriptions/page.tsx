@@ -1,16 +1,16 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { 
-  getSubscriptions, 
-  getPackageById, 
-  getUserById, 
-  updateSubscription 
-} from "@/lib/store"
+import {
+  getAdminSubscriptions,
+  processAdminSubscription,
+  type AdminSubscriptionRow,
+} from "@/lib/actions/admin"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -20,58 +20,75 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { toast } from "sonner"
-import { CheckCircle, XCircle, Clock, CreditCard } from "lucide-react"
-import type { UserSubscription } from "@/lib/types"
+import { CheckCircle, XCircle, Clock, CreditCard, Loader2 } from "lucide-react"
 
 export default function AdminSubscriptionsPage() {
-  const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([])
+  const [subscriptions, setSubscriptions] = useState<AdminSubscriptionRow[]>([])
   const [activeTab, setActiveTab] = useState("pending")
+  const [isLoading, setIsLoading] = useState(true)
+  const [processingId, setProcessingId] = useState<string | null>(null)
 
   useEffect(() => {
-    loadSubscriptions()
+    void loadSubscriptions()
   }, [])
 
-  function loadSubscriptions() {
-    const allSubs = getSubscriptions().sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
-    setSubscriptions(allSubs)
+  async function loadSubscriptions() {
+    setIsLoading(true)
+    const result = await getAdminSubscriptions()
+
+    if (!result.success) {
+      toast.error(result.error)
+      setIsLoading(false)
+      return
+    }
+
+    setSubscriptions(result.data)
+    setIsLoading(false)
   }
 
-  function handleApprove(subId: string) {
-    const now = new Date()
-    const sub = subscriptions.find(s => s.id === subId)
-    if (!sub) return
+  async function handleApprove(subId: string) {
+    setProcessingId(subId)
 
-    const pkg = getPackageById(sub.packageId)
-    if (!pkg) return
-
-    const expiresAt = new Date(now.getTime() + pkg.duration_days * 24 * 60 * 60 * 1000)
-
-    updateSubscription(subId, {
-      status: "active",
-      startedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
+    const result = await processAdminSubscription({
+      subscriptionId: subId,
+      decision: "approved",
     })
+
+    if (!result.success) {
+      toast.error(result.error)
+      setProcessingId(null)
+      return
+    }
 
     toast.success("تمت الموافقة على الاشتراك")
-    loadSubscriptions()
+    await loadSubscriptions()
+    setProcessingId(null)
   }
 
-  function handleReject(subId: string) {
-    updateSubscription(subId, {
-      status: "rejected",
+  async function handleReject(subId: string) {
+    setProcessingId(subId)
+
+    const result = await processAdminSubscription({
+      subscriptionId: subId,
+      decision: "rejected",
     })
 
+    if (!result.success) {
+      toast.error(result.error)
+      setProcessingId(null)
+      return
+    }
+
     toast.success("تم رفض الاشتراك")
-    loadSubscriptions()
+    await loadSubscriptions()
+    setProcessingId(null)
   }
 
   const pendingSubs = subscriptions.filter(s => s.status === "pending")
   const activeSubs = subscriptions.filter(s => s.status === "active")
   const allSubs = subscriptions
 
-  function getStatusBadge(status: UserSubscription["status"]) {
+  function getStatusBadge(status: AdminSubscriptionRow["status"]) {
     switch (status) {
       case "pending":
         return <Badge variant="outline" className="text-yellow-500 border-yellow-500"><Clock className="h-3 w-3 mr-1" />معلّق</Badge>
@@ -79,12 +96,10 @@ export default function AdminSubscriptionsPage() {
         return <Badge variant="outline" className="text-green-500 border-green-500"><CheckCircle className="h-3 w-3 mr-1" />نشط</Badge>
       case "expired":
         return <Badge variant="outline" className="text-muted-foreground"><Clock className="h-3 w-3 mr-1" />منتهي</Badge>
-      case "rejected":
-        return <Badge variant="outline" className="text-red-500 border-red-500"><XCircle className="h-3 w-3 mr-1" />مرفوض</Badge>
     }
   }
 
-  function SubscriptionTable({ data, showActions = false }: { data: UserSubscription[]; showActions?: boolean }) {
+  function SubscriptionTable({ data, showActions = false }: { data: AdminSubscriptionRow[]; showActions?: boolean }) {
     return (
       <div className="overflow-x-auto">
         <Table>
@@ -107,32 +122,33 @@ export default function AdminSubscriptionsPage() {
               </TableRow>
             ) : (
               data.map((sub) => {
-                const user = getUserById(sub.userId)
-                const pkg = getPackageById(sub.packageId)
+                const profile = Array.isArray(sub.profile) ? sub.profile[0] : sub.profile
+                const pkg = Array.isArray(sub.package) ? sub.package[0] : sub.package
+                const isProcessing = processingId === sub.id
                 
                 return (
                   <TableRow key={sub.id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{user?.fullName || "غير معروف"}</div>
-                        <div className="text-sm text-muted-foreground">{user?.email || ""}</div>
+                        <div className="font-medium">{profile?.full_name || "غير معروف"}</div>
+                        <div className="text-sm text-muted-foreground">{profile?.email || ""}</div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <CreditCard className="h-4 w-4 text-primary" />
                         <span>{pkg?.name || "غير معروف"}</span>
-                        <span className="text-muted-foreground">${pkg?.price_usdt}</span>
+                        <span className="text-muted-foreground">${Number(pkg?.price_usdt ?? 0).toFixed(2)}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs bg-muted px-2 py-1 rounded max-w-[150px] truncate block">
-                        {sub.txHash}
+                      <code className="text-xs bg-muted px-2 py-1 rounded max-w-37.5 truncate block">
+                        {sub.tx_hash ?? "-"}
                       </code>
                     </TableCell>
                     <TableCell>{getStatusBadge(sub.status)}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(sub.createdAt).toLocaleDateString()}
+                      {new Date(sub.created_at).toLocaleDateString("ar-EG")}
                     </TableCell>
                     {showActions && (
                       <TableCell className="text-right">
@@ -140,17 +156,31 @@ export default function AdminSubscriptionsPage() {
                           <Button 
                             size="sm" 
                             onClick={() => handleApprove(sub.id)}
+                            disabled={isProcessing}
                           >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            موافقة
+                            {isProcessing ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                موافقة
+                              </>
+                            )}
                           </Button>
                           <Button 
                             size="sm" 
                             variant="outline"
                             onClick={() => handleReject(sub.id)}
+                            disabled={isProcessing}
                           >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            رفض
+                            {isProcessing ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <XCircle className="h-4 w-4 mr-1" />
+                                رفض
+                              </>
+                            )}
                           </Button>
                         </div>
                       </TableCell>
@@ -195,7 +225,15 @@ export default function AdminSubscriptionsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SubscriptionTable data={pendingSubs} showActions />
+              {isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (
+                <SubscriptionTable data={pendingSubs} showActions />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -209,7 +247,14 @@ export default function AdminSubscriptionsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SubscriptionTable data={activeSubs} />
+              {isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (
+                <SubscriptionTable data={activeSubs} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -223,7 +268,14 @@ export default function AdminSubscriptionsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SubscriptionTable data={allSubs} />
+              {isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (
+                <SubscriptionTable data={allSubs} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
