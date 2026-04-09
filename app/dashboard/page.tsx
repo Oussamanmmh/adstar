@@ -3,12 +3,27 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
-import { getActiveSubscription, getPackageById, getTodayRatings, getLastRatingTime, getRatingsByUser } from "@/lib/store"
+import { getDashboardData } from "@/lib/actions/subscriptions-rating"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { DollarSign, Play, Clock, TrendingUp, ArrowRight, AlertCircle } from "lucide-react"
-import type { UserSubscription, Package } from "@/lib/types"
+
+type UserSubscription = {
+  id: string
+  package_id: string
+  status: "pending" | "active" | "expired"
+  started_at: string | null
+  expires_at: string | null
+}
+
+type PackageInfo = {
+  id: string
+  name: string
+  daily_earnings: number
+  duration_days: number
+  videos_per_day: number
+}
 
 function CountdownTimer({ targetTime }: { targetTime: Date }) {
   const [timeLeft, setTimeLeft] = useState("")
@@ -39,49 +54,39 @@ function CountdownTimer({ targetTime }: { targetTime: Date }) {
 }
 
 export default function DashboardPage() {
-  const { user, refreshUser } = useAuth()
+  const { user } = useAuth()
   const [subscription, setSubscription] = useState<UserSubscription | null>(null)
-  const [packageInfo, setPackageInfo] = useState<Package | null>(null)
+  const [packageInfo, setPackageInfo] = useState<PackageInfo | null>(null)
   const [todayRatings, setTodayRatings] = useState(0)
   const [totalEarned, setTotalEarned] = useState(0)
   const [canRate, setCanRate] = useState(false)
   const [nextRatingTime, setNextRatingTime] = useState<Date | null>(null)
 
   useEffect(() => {
-    if (user) {
-      const activeSub = getActiveSubscription(user.id)
-      setSubscription(activeSub || null)
+    if (!user) return
 
-      if (activeSub) {
-        const pkg = getPackageById(activeSub.packageId)
-        setPackageInfo(pkg || null)
-      }
-
-      const todayRatingsCount = getTodayRatings(user.id).length
-      setTodayRatings(todayRatingsCount)
-
-      const allRatings = getRatingsByUser(user.id)
-      const total = allRatings.reduce((sum, r) => sum + r.earned_usdt, 0)
-      setTotalEarned(total)
-
-      // Check if can rate (24h cooldown)
-      const lastRating = getLastRatingTime(user.id)
-      if (lastRating) {
-        const nextAllowed = new Date(lastRating.getTime() + 24 * 60 * 60 * 1000)
-        const now = new Date()
-        setCanRate(now >= nextAllowed)
-        setNextRatingTime(nextAllowed)
-      } else {
-        setCanRate(true)
-        setNextRatingTime(null)
-      }
-    }
+    void loadDashboardData()
   }, [user])
+
+  async function loadDashboardData() {
+    const result = await getDashboardData()
+
+    if (!result.success) {
+      return
+    }
+
+    setSubscription(result.data.activeSubscription)
+    setPackageInfo(result.data.packageInfo)
+    setTodayRatings(result.data.todayRatingsCount)
+    setTotalEarned(result.data.totalEarned)
+    setCanRate(result.data.canRate)
+    setNextRatingTime(result.data.nextRatingTime ? new Date(result.data.nextRatingTime) : null)
+  }
 
   if (!user) return null
 
-  const daysRemaining = subscription?.expiresAt 
-    ? Math.max(0, Math.ceil((new Date(subscription.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+  const daysRemaining = subscription?.expires_at
+    ? Math.max(0, Math.ceil((new Date(subscription.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : 0
 
   const progressPercent = packageInfo 
@@ -172,7 +177,7 @@ export default function DashboardPage() {
                 متبقي {daysRemaining} يوم
               </span>
               <span className="text-sm text-muted-foreground">
-                ينتهي في: {new Date(subscription.expiresAt!).toLocaleDateString("ar-EG")}
+                ينتهي في: {subscription.expires_at ? new Date(subscription.expires_at).toLocaleDateString("ar-EG") : "-"}
               </span>
             </div>
           </CardContent>

@@ -23,7 +23,7 @@ export interface User {
 // Package/Subscription tier
 export interface Package {
   id: string
-  name: "Basic" | "Standard" | "Pro"
+  name: string
   price_usdt: number
   daily_earnings: number
   duration_days: number

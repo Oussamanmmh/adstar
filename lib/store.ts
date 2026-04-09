@@ -33,30 +33,84 @@ function setItem<T>(key: string, value: T): void {
 // Default packages
 const DEFAULT_PACKAGES: Package[] = [
   {
-    id: "pkg_basic",
-    name: "Basic",
-    price_usdt: 20,
-    daily_earnings: 1,
+    id: "pkg_40",
+    name: "باقة 40",
+    price_usdt: 40,
+    daily_earnings: 10,
     duration_days: 30,
-    videos_per_day: 5,
+    videos_per_day: 1,
     isActive: true,
   },
   {
-    id: "pkg_standard",
-    name: "Standard",
-    price_usdt: 50,
-    daily_earnings: 3,
+    id: "pkg_200",
+    name: "باقة 200",
+    price_usdt: 200,
+    daily_earnings: 40,
     duration_days: 30,
-    videos_per_day: 10,
+    videos_per_day: 1,
     isActive: true,
   },
   {
-    id: "pkg_pro",
-    name: "Pro",
-    price_usdt: 100,
-    daily_earnings: 7,
+    id: "pkg_600",
+    name: "باقة 600",
+    price_usdt: 600,
+    daily_earnings: 150,
     duration_days: 30,
-    videos_per_day: 20,
+    videos_per_day: 1,
+    isActive: true,
+  },
+  {
+    id: "pkg_900",
+    name: "باقة 900",
+    price_usdt: 900,
+    daily_earnings: 250,
+    duration_days: 30,
+    videos_per_day: 1,
+    isActive: true,
+  },
+  {
+    id: "pkg_1500",
+    name: "باقة 1500",
+    price_usdt: 1500,
+    daily_earnings: 500,
+    duration_days: 30,
+    videos_per_day: 1,
+    isActive: true,
+  },
+  {
+    id: "pkg_2200",
+    name: "باقة 2200",
+    price_usdt: 2200,
+    daily_earnings: 800,
+    duration_days: 30,
+    videos_per_day: 1,
+    isActive: true,
+  },
+  {
+    id: "pkg_3000",
+    name: "باقة 3000",
+    price_usdt: 3000,
+    daily_earnings: 1070,
+    duration_days: 30,
+    videos_per_day: 1,
+    isActive: true,
+  },
+  {
+    id: "pkg_5000",
+    name: "باقة 5000",
+    price_usdt: 5000,
+    daily_earnings: 3090,
+    duration_days: 30,
+    videos_per_day: 1,
+    isActive: true,
+  },
+  {
+    id: "pkg_10000",
+    name: "باقة 10000",
+    price_usdt: 10000,
+    daily_earnings: 8000,
+    duration_days: 30,
+    videos_per_day: 1,
     isActive: true,
   },
 ]
@@ -197,7 +251,18 @@ export function setCurrentUser(userId: string | null): void {
 // ==================== PACKAGE OPERATIONS ====================
 
 export function getPackages(): Package[] {
-  return getItem<Package[]>(STORAGE_KEYS.PACKAGES, DEFAULT_PACKAGES)
+  const packages = getItem<Package[]>(STORAGE_KEYS.PACKAGES, DEFAULT_PACKAGES)
+
+  const hasLegacyCatalog = packages.some((pkg) =>
+    ["Basic", "Standard", "Pro"].includes(pkg.name)
+  )
+
+  if (packages.length !== DEFAULT_PACKAGES.length || hasLegacyCatalog) {
+    setItem(STORAGE_KEYS.PACKAGES, DEFAULT_PACKAGES)
+    return DEFAULT_PACKAGES
+  }
+
+  return packages
 }
 
 export function getPackageById(id: string): Package | undefined {

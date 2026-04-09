@@ -2,10 +2,12 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { supabaseAnonKey, supabaseUrl } from "./env"
 
+type CookieStore = Awaited<ReturnType<typeof cookies>>
+
 type CookieToSet = {
   name: string
   value: string
-  options?: Parameters<ReturnType<typeof cookies>["set"]>[2]
+  options?: Parameters<CookieStore["set"]>[2]
 }
 
 export async function createSupabaseServerClient() {

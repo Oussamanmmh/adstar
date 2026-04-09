@@ -163,7 +163,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="text-xs text-primary font-semibold">${user.balance_usdt.toFixed(2)}</div>
             </div>
             <Button variant={isProfileRoute ? "secondary" : "ghost"} size="icon" asChild className="hidden md:flex">
-              <Link href="/profile" aria-label="الملف الشخصي">
+              <Link href="/dashboard/profile" aria-label="الملف الشخصي">
                 <User className="h-4 w-4" />
               </Link>
             </Button>

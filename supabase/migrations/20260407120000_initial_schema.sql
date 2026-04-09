@@ -107,13 +107,19 @@ if not exists public.packages
 ()
 );
 
--- Insert the default 3 packages.
+-- Insert default packages.
 insert into public.packages
     (name, price_usdt, daily_earnings, duration_days)
 values
-    ('Basic', 20, 1.0000, 30),
-    ('Standard', 50, 3.0000, 30),
-    ('Pro', 100, 7.0000, 30)
+  ('باقة 40', 40, 10.0000, 30),
+  ('باقة 200', 200, 40.0000, 30),
+  ('باقة 600', 600, 150.0000, 30),
+  ('باقة 900', 900, 250.0000, 30),
+  ('باقة 1500', 1500, 500.0000, 30),
+  ('باقة 2200', 2200, 800.0000, 30),
+  ('باقة 3000', 3000, 1070.0000, 30),
+  ('باقة 5000', 5000, 3090.0000, 30),
+  ('باقة 10000', 10000, 8000.0000, 30)
 on conflict
 (name)
 do

@@ -8,31 +8,85 @@ import { Star, Play, DollarSign, Clock, CheckCircle, ArrowRight, Shield, Zap, Tr
 
 const packages = [
   {
-    name: "الأساسية",
-    price: 20,
-    dailyEarnings: 1,
-    videosPerDay: 5,
+    name: "باقة 40",
+    price: 40,
+    dailyEarnings: 10,
+    videosPerDay: 1,
     duration: 30,
     popular: false,
     gradient: "from-slate-500/10 to-slate-600/5",
   },
   {
-    name: "القياسية",
-    price: 50,
-    dailyEarnings: 3,
-    videosPerDay: 10,
+    name: "باقة 200",
+    price: 200,
+    dailyEarnings: 40,
+    videosPerDay: 1,
     duration: 30,
-    popular: true,
+    popular: false,
     gradient: "from-cyan-500/15 to-blue-500/10",
   },
   {
-    name: "الاحترافية",
-    price: 100,
-    dailyEarnings: 7,
-    videosPerDay: 20,
+    name: "باقة 600",
+    price: 600,
+    dailyEarnings: 150,
+    videosPerDay: 1,
     duration: 30,
     popular: false,
     gradient: "from-indigo-500/10 to-purple-500/5",
+  },
+  {
+    name: "باقة 900",
+    price: 900,
+    dailyEarnings: 250,
+    videosPerDay: 1,
+    duration: 30,
+    popular: false,
+    gradient: "from-emerald-500/10 to-cyan-500/5",
+  },
+  {
+    name: "باقة 1500",
+    price: 1500,
+    dailyEarnings: 500,
+    videosPerDay: 1,
+    duration: 30,
+    popular: true,
+    gradient: "from-primary/20 to-primary/5",
+  },
+  {
+    name: "باقة 2200",
+    price: 2200,
+    dailyEarnings: 800,
+    videosPerDay: 1,
+    duration: 30,
+    popular: false,
+    gradient: "from-amber-500/15 to-orange-500/10",
+  },
+  {
+    name: "باقة 3000",
+    price: 3000,
+    dailyEarnings: 1070,
+    videosPerDay: 1,
+    duration: 30,
+    popular: false,
+    gradient: "from-fuchsia-500/10 to-pink-500/5",
+  },
+  {
+    name: "باقة 5000",
+    price: 5000,
+    dailyEarnings: 3090,
+    videosPerDay: 1,
+    duration: 30,
+    popular: false,
+    gradient: "from-rose-500/10 to-red-500/5",
+  },
+  {
+    name: "باقة 10000",
+    price: 10000,
+    dailyEarnings: 8000,
+    videosPerDay: 1,
+    duration: 30,
+    popular: false,
+    gradient: "from-violet-500/10 to-indigo-500/5",
   },
 ]
 
@@ -273,7 +327,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 items-start">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
             {packages.map((pkg) => (
               <Card
                 key={pkg.name}
