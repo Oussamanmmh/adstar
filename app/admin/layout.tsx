@@ -189,7 +189,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </AlertDialogHeader>
           <div className="flex justify-end gap-3">
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmLogout} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={confirmLogout} className="bg-destructive hover:bg-destructive/90 text-white">
               تسجيل الخروج
             </AlertDialogAction>
           </div>

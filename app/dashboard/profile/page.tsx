@@ -70,8 +70,8 @@ const menuGroups: { title: string; items: MenuItem[] }[] = [
     title: 'الحساب',
     items: [
       { icon: Globe, label: 'الموقع الرسمي', href: '/' },
-      { icon: Lock, label: 'كلمة المرور لتسجيل الدخول', href: '/profile/change-password' },
-      { icon: Shield, label: 'كلمة المرور الأمنية', href: '/profile/change-security-password' },
+      { icon: Lock, label: 'كلمة المرور لتسجيل الدخول', href: '/dashboard/profile/change-password' },
+      { icon: Shield, label: 'كلمة المرور الأمنية', href: '/dashboard/profile/change-security-password' },
       { icon: UserPlus, label: 'الاشتراك', href: '/dashboard/subscribe' },
     ],
   },

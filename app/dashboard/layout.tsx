@@ -262,7 +262,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </DropdownMenu>
           
           <Link
-            href="/profile"
+            href="/dashboard/profile"
             className="flex flex-col items-center py-2 px-3 min-w-15"
           >
             <User className={`h-6 w-6 ${isProfileRoute ? 'text-primary' : 'text-muted-foreground'}`} />
