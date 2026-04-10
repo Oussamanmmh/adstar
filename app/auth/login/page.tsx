@@ -15,7 +15,7 @@ import { z } from "zod"
 
 const loginSchema = z.object({
   email: z.string().email("يرجى إدخال بريد إلكتروني صحيح"),
-  password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
+  password: z.string().min(4, "كلمة المرور يجب أن تكون 4 أحرف على الأقل"),
 })
 
 export default function LoginPage() {
@@ -62,10 +62,7 @@ export default function LoginPage() {
   async function handleResetPasswordSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    if (newPassword.length < 6) {
-      toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل")
-      return
-    }
+    
 
     if (newPassword !== confirmNewPassword) {
       toast.error("كلمتا المرور غير متطابقتين")

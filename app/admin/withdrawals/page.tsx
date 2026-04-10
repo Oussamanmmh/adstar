@@ -5,10 +5,15 @@ import { AdminWithdrawalsClient } from "../_components/Adminwithdrawalsclient"
 export const dynamic = "force-dynamic"
 
 type PageProps = {
-  searchParams?: {
-    page?: string
-    count?: string
-  }
+  searchParams?:
+    | {
+        page?: string
+        count?: string
+      }
+    | Promise<{
+        page?: string
+        count?: string
+      }>
 }
 
 function toPositiveInt(value: string | undefined, fallback: number) {
@@ -17,8 +22,9 @@ function toPositiveInt(value: string | undefined, fallback: number) {
 }
 
 export default async function AdminWithdrawalsPage({ searchParams }: PageProps) {
-  const page = toPositiveInt(searchParams?.page, 1)
-  const count = toPositiveInt(searchParams?.count, 10)
+  const resolvedSearchParams = await Promise.resolve(searchParams)
+  const page = toPositiveInt(resolvedSearchParams?.page, 1)
+  const count = toPositiveInt(resolvedSearchParams?.count, 10)
   const result = await getAdminWithdrawals({ page, count })
 
   return (

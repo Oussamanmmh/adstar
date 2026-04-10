@@ -25,7 +25,8 @@ import {
   Video,
   LogOut,
   Shield,
-  User
+  User,
+  Settings
 } from "lucide-react"
 
 const navItems = [
@@ -41,6 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, isLoading, isAuthenticated, logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const isProfileRoute = pathname.startsWith("/admin/profile")
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -126,6 +128,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div className="text-sm font-medium">{user.fullName}</div>
               <div className="text-xs text-muted-foreground">مسؤول النظام</div>
             </div>
+            <Button variant={isProfileRoute ? "secondary" : "ghost"} size="icon" asChild className="hidden md:flex">
+              <Link href="/admin/profile" aria-label="إعدادات الحساب">
+                <Settings className="h-4 w-4" />
+              </Link>
+            </Button>
             <Button variant="ghost" size="icon" onClick={handleLogout} className="hidden md:flex">
               <LogOut className="h-4 w-4" />
             </Button>
@@ -183,13 +190,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )
           })}
           
-          {/* Me / Profile with logout */}
+          <Link
+            href="/admin/profile"
+            className="flex flex-col items-center py-2 px-2 min-w-12.5"
+          >
+            <User className={`h-5 w-5 ${isProfileRoute ? "text-primary" : "text-muted-foreground"}`} />
+            <span className={`text-xs mt-1 ${isProfileRoute ? "text-primary font-medium" : "text-muted-foreground"}`}>
+              حسابي
+            </span>
+          </Link>
+
           <button
             onClick={handleLogout}
             className="flex flex-col items-center py-2 px-2 min-w-12.5"
           >
-            <User className="h-5 w-5 text-muted-foreground" />
-            <span className="text-xs mt-1 text-muted-foreground">حسابي</span>
+            <LogOut className="h-5 w-5 text-muted-foreground" />
+            <span className="text-xs mt-1 text-muted-foreground">خروج</span>
           </button>
         </div>
       </nav>

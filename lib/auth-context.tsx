@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react"
 import type { User, AuthState } from "./types"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 
@@ -27,6 +27,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = getSupabaseBrowserClient()
+  const isMountedRef = useRef(true)
+  const refreshInFlightRef = useRef<Promise<void> | null>(null)
   const [state, setState] = useState<AuthState>({
     user: null,
     isLoading: true,
@@ -62,7 +64,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return message.includes("Lock \"lock:sb-") || message.includes("another request stole it")
   }, [])
 
+  const safeSignOut = useCallback(async (localOnly = false) => {
+    try {
+      await supabase.auth.signOut(localOnly ? { scope: "local" } : undefined)
+    } catch (error) {
+      if (!isAuthLockRaceError(error)) {
+        throw error
+      }
+    }
+  }, [isAuthLockRaceError, supabase])
+
   const refreshUser = useCallback(async () => {
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current
+    }
+
+    const refreshTask = (async () => {
     let session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"] = null
 
     try {
@@ -77,45 +94,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (!session?.user) {
-      setState({ user: null, isLoading: false, isAuthenticated: false })
+      if (isMountedRef.current) {
+        setState({ user: null, isLoading: false, isAuthenticated: false })
+      }
       return
     }
 
     const appUser = await toAppUser(session.user.id)
 
     if (appUser?.isBanned) {
-      await safeSignOut()
-      setState({ user: null, isLoading: false, isAuthenticated: false })
+      await safeSignOut(true)
+      if (isMountedRef.current) {
+        setState({ user: null, isLoading: false, isAuthenticated: false })
+      }
       return
     }
 
-    setState({
-      user: appUser,
-      isLoading: false,
-      isAuthenticated: !!appUser,
-    })
-  }, [supabase, toAppUser])
-
-  const safeSignOut = useCallback(async () => {
-    try {
-      await supabase.auth.signOut()
-    } catch (error) {
-      if (!isAuthLockRaceError(error)) {
-        throw error
-      }
+    if (isMountedRef.current) {
+      setState({
+        user: appUser,
+        isLoading: false,
+        isAuthenticated: !!appUser,
+      })
     }
-  }, [isAuthLockRaceError, supabase])
+    })()
+
+    refreshInFlightRef.current = refreshTask
+    try {
+      await refreshTask
+    } finally {
+      refreshInFlightRef.current = null
+    }
+  }, [safeSignOut, supabase, toAppUser])
 
   useEffect(() => {
+    isMountedRef.current = true
     refreshUser()
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async () => {
-      await refreshUser()
+    } = supabase.auth.onAuthStateChange(() => {
+      void refreshUser()
     })
 
     return () => {
+      isMountedRef.current = false
       subscription.unsubscribe()
     }
   }, [refreshUser, supabase])
@@ -131,12 +154,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const appUser = await toAppUser(data.user.id)
       if (!appUser) {
-        await safeSignOut()
+        await safeSignOut(true)
         return { success: false, error: "تعذر تحميل بيانات الحساب" }
       }
 
       if (appUser.isBanned) {
-        await safeSignOut()
+        await safeSignOut(true)
         return {
           success: false,
           error: "تم حظر هذا الحساب. يرجى التواصل مع الدعم.",
@@ -144,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (appUser.isAdmin) {
-        await safeSignOut()
+        await safeSignOut(true)
         return {
           success: false,
           error: "حساب الإدارة يتطلب تأكيد رمز البريد الإلكتروني. استخدم تسجيل دخول الإدارة.",
@@ -206,12 +229,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const appUser = await toAppUser(data.user.id)
       if (!appUser?.isAdmin) {
-        await safeSignOut()
+        await safeSignOut(true)
         return { success: false, error: "هذا الحساب ليس حساب مسؤول" }
       }
 
       if (appUser.isBanned) {
-        await safeSignOut()
+        await safeSignOut(true)
         return {
           success: false,
           error: "تم حظر هذا الحساب. يرجى التواصل مع الدعم.",
@@ -231,7 +254,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: false,
     })
 
-    await safeSignOut()
+    // Local sign-out avoids waiting on network retries and lock recovery.
+    await safeSignOut(true)
   }, [safeSignOut])
 
   return (
