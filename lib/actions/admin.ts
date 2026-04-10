@@ -22,7 +22,41 @@ export type AdminUserRow = {
   wallet_address: string | null
   balance_usdt: number
   is_admin: boolean
+  is_banned: boolean
   created_at: string
+}
+
+export type AdminUserDetails = {
+  profile: {
+    id: string
+    full_name: string | null
+    email: string | null
+    wallet_address: string | null
+    balance_usdt: number
+    is_admin: boolean
+    is_banned: boolean
+    created_at: string
+  }
+  totals: {
+    totalRevenue: number
+    totalDeposits: number
+    totalRatingEarnings: number
+    totalWithdrawnApproved: number
+    pendingWithdrawalAmount: number
+    ratingsCount: number
+    subscriptionsCount: number
+  }
+  activity: {
+    activeSubscription: {
+      id: string
+      package_name: string
+      started_at: string | null
+      expires_at: string | null
+    } | null
+    lastRatingAt: string | null
+    lastWithdrawalAt: string | null
+    lastDepositAt: string | null
+  }
 }
 
 export type AdminSubscriptionRow = {
@@ -79,6 +113,23 @@ export type AdminPackageRow = {
   created_at: string
 }
 
+type AdminPaginationInput = {
+  page?: number
+  count?: number
+}
+
+type AdminSubscriptionsTab = 'pending' | 'active' | 'all'
+type AdminSubscriptionsInput = AdminPaginationInput & {
+  tab?: AdminSubscriptionsTab
+}
+
+type AdminPaginationMeta = {
+  page: number
+  count: number
+  totalCount: number
+  totalPages: number
+}
+
 const videoSchema = z.object({
   title: z.string().trim().min(3, 'عنوان الفيديو قصير جداً').max(200, 'العنوان طويل جداً'),
   youtubeUrl: z
@@ -100,6 +151,31 @@ const packageSchema = z.object({
   videosPerDay: z.number().int().positive('عدد الفيديوهات يجب أن يكون أكبر من 0'),
   isActive: z.boolean(),
 })
+
+function normalizePagination(input?: AdminPaginationInput) {
+  const pageRaw = Number(input?.page ?? 1)
+  const countRaw = Number(input?.count ?? 10)
+
+  const page = Number.isFinite(pageRaw) ? Math.max(1, Math.floor(pageRaw)) : 1
+  const count = Number.isFinite(countRaw)
+    ? Math.max(5, Math.min(50, Math.floor(countRaw)))
+    : 10
+
+  const from = (page - 1) * count
+  const to = from + count - 1
+
+  return { page, count, from, to }
+}
+
+function buildPaginationMeta(page: number, count: number, totalCount: number): AdminPaginationMeta {
+  const totalPages = Math.max(1, Math.ceil(totalCount / count))
+  return {
+    page: Math.min(page, totalPages),
+    count,
+    totalCount,
+    totalPages,
+  }
+}
 
 function getProfileValue<T>(value: T | T[] | null): T | null {
   if (!value) return null
@@ -223,7 +299,7 @@ export async function getAdminDashboardData() {
   }
 }
 
-export async function getAdminUsers() {
+export async function getAdminUsers(input?: AdminPaginationInput) {
   const admin = await requireAdmin()
   if (!admin.ok) {
     return {
@@ -232,10 +308,15 @@ export async function getAdminUsers() {
     }
   }
 
-  const { data, error } = await admin.supabase
+  const { page, count, from, to } = normalizePagination(input)
+
+  const { data, error, count: totalCount } = await admin.supabase
     .from('profiles')
-    .select('id, full_name, email, wallet_address, balance_usdt, is_admin, created_at')
+    .select('id, full_name, email, wallet_address, balance_usdt, is_admin, is_banned, created_at', {
+      count: 'exact',
+    })
     .order('created_at', { ascending: false })
+    .range(from, to)
 
   if (error) {
     return {
@@ -244,13 +325,40 @@ export async function getAdminUsers() {
     }
   }
 
+  const safeTotalCount = totalCount ?? 0
+  const pagination = buildPaginationMeta(page, count, safeTotalCount)
+
+  if (safeTotalCount > 0 && from >= safeTotalCount) {
+    const fallbackFrom = (pagination.page - 1) * count
+    const fallbackTo = fallbackFrom + count - 1
+    const { data: fallbackData, error: fallbackError } = await admin.supabase
+      .from('profiles')
+      .select('id, full_name, email, wallet_address, balance_usdt, is_admin, is_banned, created_at')
+      .order('created_at', { ascending: false })
+      .range(fallbackFrom, fallbackTo)
+
+    if (fallbackError) {
+      return {
+        success: false as const,
+        error: 'تعذر تحميل المستخدمين حالياً',
+      }
+    }
+
+    return {
+      success: true as const,
+      data: (fallbackData ?? []) as AdminUserRow[],
+      ...pagination,
+    }
+  }
+
   return {
     success: true as const,
     data: (data ?? []) as AdminUserRow[],
+    ...pagination,
   }
 }
 
-export async function getAdminSubscriptions() {
+export async function setUserBanStatus(input: { userId: string; isBanned: boolean }) {
   const admin = await requireAdmin()
   if (!admin.ok) {
     return {
@@ -259,12 +367,251 @@ export async function getAdminSubscriptions() {
     }
   }
 
-  const { data, error } = await admin.supabase
+  const { data: targetUser, error: targetError } = await admin.supabase
+    .from('profiles')
+    .select('id, is_admin')
+    .eq('id', input.userId)
+    .maybeSingle()
+
+  if (targetError || !targetUser) {
+    return {
+      success: false as const,
+      error: 'تعذر العثور على المستخدم المطلوب',
+    }
+  }
+
+  if (targetUser.is_admin) {
+    return {
+      success: false as const,
+      error: 'لا يمكن حظر حساب إداري',
+    }
+  }
+
+  if (admin.userId === input.userId) {
+    return {
+      success: false as const,
+      error: 'لا يمكنك تغيير حالة حظرك بنفسك',
+    }
+  }
+
+  const { error } = await admin.supabase
+    .from('profiles')
+    .update({ is_banned: input.isBanned })
+    .eq('id', input.userId)
+
+  if (error) {
+    return {
+      success: false as const,
+      error: input.isBanned ? 'تعذر حظر المستخدم حالياً' : 'تعذر إلغاء حظر المستخدم حالياً',
+    }
+  }
+
+  revalidatePath('/admin/users')
+  revalidatePath(`/admin/users/${input.userId}`)
+
+  return {
+    success: true as const,
+  }
+}
+
+export async function getAdminUserDetails(userId: string) {
+  const admin = await requireAdmin()
+  if (!admin.ok) {
+    return {
+      success: false as const,
+      error: admin.error,
+    }
+  }
+
+  const [
+    { data: profile, error: profileError },
+    { data: earningsRows, error: earningsError },
+    { data: withdrawalsRows, error: withdrawalsError },
+    { data: ratingsRows, error: ratingsError },
+    { data: subscriptionsRows, error: subscriptionsError },
+    { data: depositsRows, error: depositsError },
+  ] = await Promise.all([
+    admin.supabase
+      .from('profiles')
+      .select('id, full_name, email, wallet_address, balance_usdt, is_admin, is_banned, created_at')
+      .eq('id', userId)
+      .maybeSingle(),
+    admin.supabase
+      .from('earnings')
+      .select('amount_usdt, source, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false }),
+    admin.supabase
+      .from('withdrawals')
+      .select('amount_usdt, status, requested_at')
+      .eq('user_id', userId)
+      .order('requested_at', { ascending: false }),
+    admin.supabase
+      .from('video_ratings')
+      .select('id, rated_at')
+      .eq('user_id', userId)
+      .order('rated_at', { ascending: false }),
+    admin.supabase
+      .from('user_subscriptions')
+      .select('id, status, started_at, expires_at, package:packages(name)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false }),
+    admin.supabase
+      .from('deposits')
+      .select('amount_usdt, confirmed_at')
+      .eq('user_id', userId)
+      .eq('status', 'confirmed')
+      .order('confirmed_at', { ascending: false }),
+  ])
+
+  if (profileError || earningsError || withdrawalsError || ratingsError || subscriptionsError || depositsError) {
+    return {
+      success: false as const,
+      error: 'تعذر تحميل تفاصيل المستخدم حالياً',
+    }
+  }
+
+  if (!profile) {
+    return {
+      success: false as const,
+      error: 'المستخدم غير موجود',
+    }
+  }
+
+  const totalRevenue = (earningsRows ?? []).reduce(
+    (sum, row) => sum + Number((row as { amount_usdt: number }).amount_usdt ?? 0),
+    0
+  )
+
+  const totalDeposits = (depositsRows ?? []).reduce(
+    (sum, row) => sum + Number((row as { amount_usdt: number }).amount_usdt ?? 0),
+    0
+  )
+
+  const totalRatingEarnings = (earningsRows ?? [])
+    .filter((row) => String((row as { source: string }).source ?? '') === 'rating')
+    .reduce((sum, row) => sum + Number((row as { amount_usdt: number }).amount_usdt ?? 0), 0)
+
+  const totalWithdrawnApproved = (withdrawalsRows ?? [])
+    .filter((row) => String((row as { status: string }).status ?? '') === 'approved')
+    .reduce((sum, row) => sum + Number((row as { amount_usdt: number }).amount_usdt ?? 0), 0)
+
+  const pendingWithdrawalAmount = (withdrawalsRows ?? [])
+    .filter((row) => String((row as { status: string }).status ?? '') === 'pending')
+    .reduce((sum, row) => sum + Number((row as { amount_usdt: number }).amount_usdt ?? 0), 0)
+
+  const activeSubscription = (subscriptionsRows ?? []).find((row) => {
+    const status = String((row as { status: string }).status ?? '')
+    const expiresAt = (row as { expires_at: string | null }).expires_at
+    return status === 'active' && !!expiresAt && new Date(expiresAt) > new Date()
+  }) as
+    | {
+        id: string
+        started_at: string | null
+        expires_at: string | null
+        package: { name: string } | { name: string }[] | null
+      }
+    | undefined
+
+  const packageValue = activeSubscription
+    ? getProfileValue(activeSubscription.package as { name: string } | { name: string }[] | null)
+    : null
+
+  return {
+    success: true as const,
+    data: {
+      profile: {
+        id: profile.id,
+        full_name: profile.full_name,
+        email: profile.email,
+        wallet_address: profile.wallet_address,
+        balance_usdt: Number(profile.balance_usdt ?? 0),
+        is_admin: !!profile.is_admin,
+        is_banned: !!profile.is_banned,
+        created_at: profile.created_at,
+      },
+      totals: {
+        totalRevenue,
+        totalDeposits,
+        totalRatingEarnings,
+        totalWithdrawnApproved,
+        pendingWithdrawalAmount,
+        ratingsCount: (ratingsRows ?? []).length,
+        subscriptionsCount: (subscriptionsRows ?? []).length,
+      },
+      activity: {
+        activeSubscription: activeSubscription
+          ? {
+              id: activeSubscription.id,
+              package_name: packageValue?.name ?? 'غير معروف',
+              started_at: activeSubscription.started_at,
+              expires_at: activeSubscription.expires_at,
+            }
+          : null,
+        lastRatingAt: (ratingsRows?.[0] as { rated_at: string } | undefined)?.rated_at ?? null,
+        lastWithdrawalAt:
+          (withdrawalsRows?.[0] as { requested_at: string } | undefined)?.requested_at ?? null,
+        lastDepositAt:
+          (depositsRows?.[0] as { confirmed_at: string } | undefined)?.confirmed_at ?? null,
+      },
+    } as AdminUserDetails,
+  }
+}
+
+export async function getAdminSubscriptions(input?: AdminSubscriptionsInput) {
+  const admin = await requireAdmin()
+  if (!admin.ok) {
+    return {
+      success: false as const,
+      error: admin.error,
+    }
+  }
+
+  const tab: AdminSubscriptionsTab =
+    input?.tab === 'pending' || input?.tab === 'active' || input?.tab === 'all'
+      ? input.tab
+      : 'all'
+  const statusFilter = tab === 'all' ? null : tab
+  const { page, count, from, to } = normalizePagination(input)
+
+  let subscriptionsQuery = admin.supabase
     .from('user_subscriptions')
     .select(
-      'id, user_id, package_id, tx_hash, status, started_at, expires_at, created_at, profile:profiles!user_subscriptions_user_id_fkey(full_name, email), package:packages!user_subscriptions_package_id_fkey(name, price_usdt, duration_days)'
+      'id, user_id, package_id, tx_hash, status, started_at, expires_at, created_at, profile:profiles!user_subscriptions_user_id_fkey(full_name, email), package:packages!user_subscriptions_package_id_fkey(name, price_usdt, duration_days)',
+      { count: 'exact' }
     )
-    .order('created_at', { ascending: false })
+
+  if (statusFilter) {
+    subscriptionsQuery = subscriptionsQuery.eq('status', statusFilter)
+  }
+
+  const [
+    { data, error, count: totalCount },
+    { count: pendingCount },
+    { count: activeCount },
+    { count: allCount },
+  ] = await Promise.all([
+    subscriptionsQuery
+      .order('created_at', { ascending: false })
+      .range(from, to),
+    admin.supabase
+      .from('user_subscriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending'),
+    admin.supabase
+      .from('user_subscriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'active'),
+    admin.supabase
+      .from('user_subscriptions')
+      .select('*', { count: 'exact', head: true }),
+  ])
+
+  const counts = {
+    pendingCount: pendingCount ?? 0,
+    activeCount: activeCount ?? 0,
+    allCount: allCount ?? 0,
+  }
 
   if (error) {
     return {
@@ -273,9 +620,49 @@ export async function getAdminSubscriptions() {
     }
   }
 
+  const safeTotalCount = totalCount ?? 0
+  const pagination = buildPaginationMeta(page, count, safeTotalCount)
+
+  if (safeTotalCount > 0 && from >= safeTotalCount) {
+    const fallbackFrom = (pagination.page - 1) * count
+    const fallbackTo = fallbackFrom + count - 1
+
+    let fallbackQuery = admin.supabase
+      .from('user_subscriptions')
+      .select(
+        'id, user_id, package_id, tx_hash, status, started_at, expires_at, created_at, profile:profiles!user_subscriptions_user_id_fkey(full_name, email), package:packages!user_subscriptions_package_id_fkey(name, price_usdt, duration_days)'
+      )
+
+    if (statusFilter) {
+      fallbackQuery = fallbackQuery.eq('status', statusFilter)
+    }
+
+    const { data: fallbackData, error: fallbackError } = await fallbackQuery
+      .order('created_at', { ascending: false })
+      .range(fallbackFrom, fallbackTo)
+
+    if (fallbackError) {
+      return {
+        success: false as const,
+        error: 'تعذر تحميل بيانات الاشتراكات حالياً',
+      }
+    }
+
+    return {
+      success: true as const,
+      data: (fallbackData ?? []) as AdminSubscriptionRow[],
+      tab,
+      ...counts,
+      ...pagination,
+    }
+  }
+
   return {
     success: true as const,
     data: (data ?? []) as AdminSubscriptionRow[],
+    tab,
+    ...counts,
+    ...pagination,
   }
 }
 
@@ -364,7 +751,7 @@ export async function processAdminSubscription(input: {
   }
 }
 
-export async function getAdminVideos() {
+export async function getAdminVideos(input?: AdminPaginationInput) {
   const admin = await requireAdmin()
   if (!admin.ok) {
     return {
@@ -373,10 +760,15 @@ export async function getAdminVideos() {
     }
   }
 
-  const { data, error } = await admin.supabase
+  const { page, count, from, to } = normalizePagination(input)
+
+  const { data, error, count: totalCount } = await admin.supabase
     .from('videos')
-    .select('id, title, youtube_url, thumbnail_url, order_index, is_active, created_at')
+    .select('id, title, youtube_url, thumbnail_url, order_index, is_active, created_at', {
+      count: 'exact',
+    })
     .order('order_index', { ascending: true })
+    .range(from, to)
 
   if (error) {
     return {
@@ -385,9 +777,36 @@ export async function getAdminVideos() {
     }
   }
 
+  const safeTotalCount = totalCount ?? 0
+  const pagination = buildPaginationMeta(page, count, safeTotalCount)
+
+  if (safeTotalCount > 0 && from >= safeTotalCount) {
+    const fallbackFrom = (pagination.page - 1) * count
+    const fallbackTo = fallbackFrom + count - 1
+    const { data: fallbackData, error: fallbackError } = await admin.supabase
+      .from('videos')
+      .select('id, title, youtube_url, thumbnail_url, order_index, is_active, created_at')
+      .order('order_index', { ascending: true })
+      .range(fallbackFrom, fallbackTo)
+
+    if (fallbackError) {
+      return {
+        success: false as const,
+        error: 'تعذر تحميل الفيديوهات حالياً',
+      }
+    }
+
+    return {
+      success: true as const,
+      data: (fallbackData ?? []) as AdminVideoRow[],
+      ...pagination,
+    }
+  }
+
   return {
     success: true as const,
     data: (data ?? []) as AdminVideoRow[],
+    ...pagination,
   }
 }
 
@@ -539,7 +958,7 @@ export async function deleteAdminVideo(input: { id: string }) {
   }
 }
 
-export async function getAdminPackages() {
+export async function getAdminPackages(input?: AdminPaginationInput) {
   const admin = await requireAdmin()
   if (!admin.ok) {
     return {
@@ -548,10 +967,15 @@ export async function getAdminPackages() {
     }
   }
 
-  const { data, error } = await admin.supabase
+  const { page, count, from, to } = normalizePagination(input)
+
+  const { data, error, count: totalCount } = await admin.supabase
     .from('packages')
-    .select('id, name, price_usdt, daily_earnings, duration_days, videos_per_day, is_active, created_at')
+    .select('id, name, price_usdt, daily_earnings, duration_days, videos_per_day, is_active, created_at', {
+      count: 'exact',
+    })
     .order('price_usdt', { ascending: true })
+    .range(from, to)
 
   if (error) {
     return {
@@ -560,9 +984,36 @@ export async function getAdminPackages() {
     }
   }
 
+  const safeTotalCount = totalCount ?? 0
+  const pagination = buildPaginationMeta(page, count, safeTotalCount)
+
+  if (safeTotalCount > 0 && from >= safeTotalCount) {
+    const fallbackFrom = (pagination.page - 1) * count
+    const fallbackTo = fallbackFrom + count - 1
+    const { data: fallbackData, error: fallbackError } = await admin.supabase
+      .from('packages')
+      .select('id, name, price_usdt, daily_earnings, duration_days, videos_per_day, is_active, created_at')
+      .order('price_usdt', { ascending: true })
+      .range(fallbackFrom, fallbackTo)
+
+    if (fallbackError) {
+      return {
+        success: false as const,
+        error: 'تعذر تحميل الباقات حالياً',
+      }
+    }
+
+    return {
+      success: true as const,
+      data: (fallbackData ?? []) as AdminPackageRow[],
+      ...pagination,
+    }
+  }
+
   return {
     success: true as const,
     data: (data ?? []) as AdminPackageRow[],
+    ...pagination,
   }
 }
 

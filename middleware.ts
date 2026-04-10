@@ -50,11 +50,20 @@ export async function middleware(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_admin")
+    .select("is_admin, is_banned")
     .eq("id", user.id)
     .maybeSingle()
 
   const isAdmin = !!profile?.is_admin
+  const isBanned = !!profile?.is_banned
+
+  if (isBanned && (isDashboardRoute || isAdminRoute || isProfileRoute)) {
+    return NextResponse.redirect(new URL("/auth/login", request.url))
+  }
+
+  if (isBanned && isAuthPage) {
+    return response
+  }
 
   if (isAdminRoute && !isAdmin) {
     return NextResponse.redirect(new URL("/dashboard", request.url))

@@ -14,6 +14,7 @@ export interface User {
   walletAddress?: string
   balance_usdt: number
   isAdmin: boolean
+  isBanned: boolean
   inviteCode?: string
   referredBy?: string
   createdAt: string

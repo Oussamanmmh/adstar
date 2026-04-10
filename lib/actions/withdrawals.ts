@@ -36,6 +36,26 @@ type AdminWithdrawalRow = WithdrawalRow & {
     | null
 }
 
+type AdminPaginationInput = {
+  page?: number
+  count?: number
+}
+
+function normalizePagination(input?: AdminPaginationInput) {
+  const pageRaw = Number(input?.page ?? 1)
+  const countRaw = Number(input?.count ?? 10)
+
+  const page = Number.isFinite(pageRaw) ? Math.max(1, Math.floor(pageRaw)) : 1
+  const count = Number.isFinite(countRaw)
+    ? Math.max(5, Math.min(50, Math.floor(countRaw)))
+    : 10
+
+  const from = (page - 1) * count
+  const to = from + count - 1
+
+  return { page, count, from, to }
+}
+
 function mapDbErrorToArabic(message: string): string {
   if (message.includes('pending withdrawal request already exists')) {
     return 'لديك بالفعل طلب سحب معلق'
@@ -151,7 +171,7 @@ export async function submitWithdrawalRequest(input: {
   }
 }
 
-export async function getAdminWithdrawals() {
+export async function getAdminWithdrawals(input?: AdminPaginationInput) {
   const supabase = await createClient()
 
   const {
@@ -178,12 +198,16 @@ export async function getAdminWithdrawals() {
     }
   }
 
-  const { data, error } = await supabase
+  const { page, count, from, to } = normalizePagination(input)
+
+  const { data, error, count: totalCount } = await supabase
     .from('withdrawals')
     .select(
-      'id, user_id, amount_usdt, wallet_address, network, status, requested_at, processed_at, profile:profiles!withdrawals_user_id_fkey(full_name, email)'
+      'id, user_id, amount_usdt, wallet_address, network, status, requested_at, processed_at, profile:profiles!withdrawals_user_id_fkey(full_name, email)',
+      { count: 'exact' }
     )
     .order('requested_at', { ascending: false })
+    .range(from, to)
 
   if (error) {
     return {
@@ -192,9 +216,46 @@ export async function getAdminWithdrawals() {
     }
   }
 
+  const safeTotalCount = totalCount ?? 0
+  const totalPages = Math.max(1, Math.ceil(safeTotalCount / count))
+  const safePage = Math.min(page, totalPages)
+
+  if (safeTotalCount > 0 && from >= safeTotalCount) {
+    const fallbackFrom = (safePage - 1) * count
+    const fallbackTo = fallbackFrom + count - 1
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('withdrawals')
+      .select(
+        'id, user_id, amount_usdt, wallet_address, network, status, requested_at, processed_at, profile:profiles!withdrawals_user_id_fkey(full_name, email)'
+      )
+      .order('requested_at', { ascending: false })
+      .range(fallbackFrom, fallbackTo)
+
+    if (fallbackError) {
+      return {
+        success: false as const,
+        error: 'تعذر تحميل طلبات السحب حاليا',
+      }
+    }
+
+    return {
+      success: true as const,
+      data: (fallbackData ?? []) as AdminWithdrawalRow[],
+      page: safePage,
+      count,
+      totalCount: safeTotalCount,
+      totalPages,
+    }
+  }
+
   return {
     success: true as const,
     data: (data ?? []) as AdminWithdrawalRow[],
+    page: safePage,
+    count,
+    totalCount: safeTotalCount,
+    totalPages,
   }
 }
 

@@ -16,22 +16,13 @@ const loginSchema = z.object({
   password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
 })
 
-const adminCodeSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, "رمز التأكيد يجب أن يتكون من 6 أرقام"),
-})
-
 export default function LoginPage() {
   const router = useRouter()
-  const { login, startAdminLogin, verifyAdminLoginCode, isAuthenticated, user } = useAuth()
+  const { login, startAdminLogin, isAuthenticated, user } = useAuth()
 
   const [mode, setMode] = useState<"user" | "admin">("user")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [adminCode, setAdminCode] = useState("")
-  const [isAwaitingAdminCode, setIsAwaitingAdminCode] = useState(false)
 
   const [showPassword, setShowPassword] = useState(false)
 
@@ -64,35 +55,9 @@ export default function LoginPage() {
         : await login(validated.data.email, validated.data.password)
 
     if (result.success) {
-      if (mode === "admin" && "requiresOtp" in result && result.requiresOtp) {
-        setIsAwaitingAdminCode(true)
-        toast.success("تم إرسال رمز التأكيد إلى بريد المسؤول")
-      } else {
-        toast.success("مرحباً بعودتك!")
-      }
+      toast.success("مرحباً بعودتك!")
     } else {
       toast.error(result.error || "فشل تسجيل الدخول")
-    }
-
-    setIsLoading(false)
-  }
-
-  async function handleVerifyAdminCode(e: React.FormEvent) {
-    e.preventDefault()
-
-    const validated = adminCodeSchema.safeParse({ code: adminCode })
-    if (!validated.success) {
-      toast.error(validated.error.issues[0]?.message || "رمز التأكيد غير صالح")
-      return
-    }
-
-    setIsLoading(true)
-    const result = await verifyAdminLoginCode(email, validated.data.code)
-
-    if (result.success) {
-      toast.success("تم تأكيد دخول المسؤول بنجاح")
-    } else {
-      toast.error(result.error || "فشل تأكيد رمز الإدارة")
     }
 
     setIsLoading(false)
@@ -105,7 +70,7 @@ export default function LoginPage() {
         <div className="mb-5 text-center">
           <h1 className="text-xl font-bold">تسجيل الدخول</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {mode === "admin" ? "دخول لوحة الإدارة مع تأكيد البريد" : "ادخل إلى حسابك لمتابعة الربح"}
+            {mode === "admin" ? "دخول مباشر إلى لوحة الإدارة" : "ادخل إلى حسابك لمتابعة الربح"}
           </p>
         </div>
 
@@ -114,8 +79,6 @@ export default function LoginPage() {
             type="button"
             onClick={() => {
               setMode("user")
-              setIsAwaitingAdminCode(false)
-              setAdminCode("")
             }}
             className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
               mode === "user"
@@ -129,8 +92,6 @@ export default function LoginPage() {
             type="button"
             onClick={() => {
               setMode("admin")
-              setIsAwaitingAdminCode(false)
-              setAdminCode("")
             }}
             className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
               mode === "admin"
@@ -142,52 +103,7 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {isAwaitingAdminCode ? (
-          <form onSubmit={handleVerifyAdminCode} className="space-y-4">
-            <div className="text-sm text-muted-foreground text-center">
-              أدخل رمز التأكيد المرسل إلى البريد الإلكتروني
-            </div>
-            <div className="relative">
-              <Input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="رمز التأكيد (6 أرقام)"
-                value={adminCode}
-                onChange={(e) => setAdminCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                required
-                className="h-14 bg-background/60 border-border rounded-xl text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-14 rounded-xl text-base font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/25 transition-all"
-            >
-              {isLoading ? (
-                <>
-                  <Spinner className="mr-2" />
-                  جارٍ التحقق...
-                </>
-              ) : (
-                "تأكيد دخول الإدارة"
-              )}
-            </Button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsAwaitingAdminCode(false)
-                setAdminCode("")
-              }}
-              className="text-sm text-primary hover:underline mx-auto block"
-            >
-              الرجوع إلى إدخال البريد وكلمة المرور
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
             <div className="relative">
               <Input
                 type="email"
@@ -230,13 +146,12 @@ export default function LoginPage() {
                   جارٍ تسجيل الدخول...
                 </>
               ) : mode === "admin" ? (
-                "إرسال رمز الإدارة"
+                "دخول الإدارة"
               ) : (
                 "تسجيل الدخول"
               )}
             </Button>
           </form>
-        )}
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
           {"ليس لديك حساب؟ "}

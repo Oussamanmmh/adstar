@@ -15,15 +15,10 @@ interface AuthResult {
   error?: string
 }
 
-interface AdminLoginStartResult extends AuthResult {
-  requiresOtp?: boolean
-}
-
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<AuthResult>
   register: (params: RegisterParams) => Promise<AuthResult>
-  startAdminLogin: (email: string, password: string) => Promise<AdminLoginStartResult>
-  verifyAdminLoginCode: (email: string, code: string) => Promise<AuthResult>
+  startAdminLogin: (email: string, password: string) => Promise<AuthResult>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -42,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (authUserId: string): Promise<User | null> => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, wallet_address, balance_usdt, is_admin, created_at")
+        .select("id, full_name, email, wallet_address, balance_usdt, is_admin, is_banned, created_at")
         .eq("id", authUserId)
         .maybeSingle()
 
@@ -55,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         walletAddress: data.wallet_address ?? undefined,
         balance_usdt: Number(data.balance_usdt ?? 0),
         isAdmin: !!data.is_admin,
+        isBanned: !!data.is_banned,
         createdAt: data.created_at,
       }
     },
@@ -86,6 +82,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const appUser = await toAppUser(session.user.id)
+
+    if (appUser?.isBanned) {
+      await safeSignOut()
+      setState({ user: null, isLoading: false, isAuthenticated: false })
+      return
+    }
 
     setState({
       user: appUser,
@@ -131,6 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!appUser) {
         await safeSignOut()
         return { success: false, error: "تعذر تحميل بيانات الحساب" }
+      }
+
+      if (appUser.isBanned) {
+        await safeSignOut()
+        return {
+          success: false,
+          error: "تم حظر هذا الحساب. يرجى التواصل مع الدعم.",
+        }
       }
 
       if (appUser.isAdmin) {
@@ -182,10 +192,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const startAdminLogin = useCallback(
-    async (email: string, password: string): Promise<AdminLoginStartResult> => {
+    async (email: string, password: string): Promise<AuthResult> => {
       const normalizedEmail = email.trim().toLowerCase()
-      const callbackUrl =
-        typeof window !== "undefined" ? `${window.location.origin}/auth/callback?next=/admin` : undefined
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -202,44 +210,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "هذا الحساب ليس حساب مسؤول" }
       }
 
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: normalizedEmail,
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: callbackUrl,
-        },
-      })
-
-      await safeSignOut()
-
-      if (otpError) {
-        return { success: false, error: "تعذر إرسال رمز التحقق إلى البريد الإلكتروني" }
-      }
-
-      return { success: true, requiresOtp: true }
-    },
-    [supabase, toAppUser]
-  )
-
-  const verifyAdminLoginCode = useCallback(
-    async (email: string, code: string): Promise<AuthResult> => {
-      const normalizedEmail = email.trim().toLowerCase()
-
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: normalizedEmail,
-        token: code.trim(),
-        type: "email",
-      })
-
-      if (error || !data.user) {
-        return { success: false, error: "رمز التأكيد غير صحيح أو منتهي الصلاحية" }
-      }
-
-      const appUser = await toAppUser(data.user.id)
-
-      if (!appUser?.isAdmin) {
+      if (appUser.isBanned) {
         await safeSignOut()
-        return { success: false, error: "هذا الحساب ليس حساب مسؤول" }
+        return {
+          success: false,
+          error: "تم حظر هذا الحساب. يرجى التواصل مع الدعم.",
+        }
       }
 
       setState({ user: appUser, isLoading: false, isAuthenticated: true })
@@ -265,7 +241,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         startAdminLogin,
-        verifyAdminLoginCode,
         logout,
         refreshUser,
       }}
