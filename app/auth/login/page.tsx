@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
+import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { Star, Eye, EyeOff } from "lucide-react"
 import { z } from "zod"
@@ -18,15 +20,34 @@ const loginSchema = z.object({
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login, startAdminLogin, isAuthenticated, user } = useAuth()
+  const supabase = getSupabaseBrowserClient()
 
   const [mode, setMode] = useState<"user" | "admin">("user")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmNewPassword, setConfirmNewPassword] = useState("")
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
 
   const [showPassword, setShowPassword] = useState(false)
 
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem("remembered-email")
+    if (rememberedEmail) {
+      setEmail(rememberedEmail)
+      setRememberMe(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    const recoveryParam = searchParams.get("recovery")
+    setIsRecoveryMode(recoveryParam === "1")
+  }, [searchParams])
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -37,6 +58,35 @@ export default function LoginPage() {
       }
     }
   }, [isAuthenticated, user, router])
+
+  async function handleResetPasswordSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (newPassword.length < 6) {
+      toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل")
+      return
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      toast.error("كلمتا المرور غير متطابقتين")
+      return
+    }
+
+    setIsLoading(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+
+    if (error) {
+      toast.error(error.message || "تعذر تحديث كلمة المرور")
+      setIsLoading(false)
+      return
+    }
+
+    toast.success("تم تعيين كلمة المرور الجديدة بنجاح")
+    setNewPassword("")
+    setConfirmNewPassword("")
+    router.replace("/auth/login")
+    setIsLoading(false)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -55,12 +105,67 @@ export default function LoginPage() {
         : await login(validated.data.email, validated.data.password)
 
     if (result.success) {
+      if (rememberMe) {
+        localStorage.setItem("remembered-email", validated.data.email)
+      } else {
+        localStorage.removeItem("remembered-email")
+      }
       toast.success("مرحباً بعودتك!")
     } else {
       toast.error(result.error || "فشل تسجيل الدخول")
     }
 
     setIsLoading(false)
+  }
+
+  if (isRecoveryMode) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-background">
+        <div className="w-full max-w-md z-10 rounded-2xl border border-primary/20 bg-card/90 backdrop-blur-md p-5 sm:p-6">
+          <div className="mb-5 text-center">
+            <h1 className="text-xl font-bold">تعيين كلمة مرور جديدة</h1>
+            <p className="text-sm text-muted-foreground mt-1">أدخل كلمة المرور الجديدة لإكمال الاستعادة</p>
+          </div>
+
+          <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+            <Input
+              type="password"
+              placeholder="كلمة المرور الجديدة"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+              className="h-14 bg-background/60 border-border rounded-xl text-foreground placeholder:text-muted-foreground"
+            />
+
+            <Input
+              type="password"
+              placeholder="تأكيد كلمة المرور الجديدة"
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+              className="h-14 bg-background/60 border-border rounded-xl text-foreground placeholder:text-muted-foreground"
+            />
+
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-14 rounded-xl text-base font-semibold bg-primary hover:bg-primary/90 shadow-md shadow-primary/25 transition-all text-white"
+            >
+              {isLoading ? (
+                <>
+                  <Spinner className="mr-2" />
+                  جارٍ الحفظ...
+                </>
+              ) : (
+                "حفظ كلمة المرور الجديدة"
+              )}
+            </Button>
+          </form>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -132,6 +237,25 @@ export default function LoginPage() {
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between text-sm">
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  className="rounded-full"
+                />
+                <span className="text-muted-foreground">تذكرني</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => router.push("/auth/forgot-password")}
+                className="text-primary hover:underline"
+              >
+                نسيت كلمة المرور؟
               </button>
             </div>
 

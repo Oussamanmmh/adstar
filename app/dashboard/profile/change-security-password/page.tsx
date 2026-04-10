@@ -6,6 +6,8 @@ import { Eye, EyeOff, Lock, ArrowRight, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 function PasswordField({ label, value, onChange, error, autoComplete }: {
   label: string; value: string; onChange: (v: string) => void; error?: string; autoComplete?: string
@@ -73,6 +75,8 @@ function StrengthBar({ password }: { password: string }) {
 
 export default function ChangePasswordPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const supabase = getSupabaseBrowserClient()
   const [form, setForm] = useState({ old: '', newPass: '', confirm: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
@@ -84,6 +88,7 @@ export default function ChangePasswordPage() {
     const e: Record<string, string> = {}
     if (!form.old) e.old = 'هذا الحقل مطلوب'
     if (form.newPass.length < 8) e.newPass = 'يجب أن تكون 8 أحرف على الأقل'
+    if (form.newPass === form.old) e.newPass = 'يجب أن تكون كلمة المرور الجديدة مختلفة عن الحالية'
     if (form.newPass !== form.confirm) e.confirm = 'كلمتا المرور غير متطابقتين'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -91,9 +96,33 @@ export default function ChangePasswordPage() {
 
   async function handleSubmit() {
     if (!validate()) return
+    if (!user?.email) {
+      toast.error('تعذر تحديد حسابك. يرجى تسجيل الدخول مرة أخرى')
+      return
+    }
+
     setLoading(true)
     try {
-      await new Promise((r) => setTimeout(r, 1200))
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: form.old,
+      })
+
+      if (verifyError) {
+        setErrors({ old: 'كلمة المرور الحالية غير صحيحة' })
+        toast.error('كلمة المرور الحالية غير صحيحة')
+        return
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: form.newPass,
+      })
+
+      if (updateError) {
+        toast.error(updateError.message || 'تعذر تحديث كلمة المرور')
+        return
+      }
+
       toast.success('تم تغيير كلمة المرور بنجاح')
       router.back()
     } catch {
@@ -169,7 +198,7 @@ export default function ChangePasswordPage() {
             disabled={loading}
           >
             {loading && <span className="h-4 w-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" />}
-            {loading ? 'جارٍ الحفظ...' : 'يتأكد'}
+            {loading ? 'جارٍ الحفظ...' : 'تأكيد التغيير'}
           </Button>
         </div>
 

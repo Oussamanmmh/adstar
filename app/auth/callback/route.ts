@@ -18,10 +18,9 @@ export async function GET(request: NextRequest) {
   const typeParam = requestUrl.searchParams.get("type")
   const nextPath = requestUrl.searchParams.get("next")
 
-  const redirectTo = new URL("/auth/login", request.url)
-  if (nextPath?.startsWith("/")) {
-    redirectTo.pathname = nextPath
-  }
+  const redirectTo = nextPath?.startsWith("/")
+    ? new URL(nextPath, request.url)
+    : new URL("/auth/login", request.url)
 
   const response = NextResponse.redirect(redirectTo)
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
