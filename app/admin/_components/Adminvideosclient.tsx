@@ -54,7 +54,6 @@ interface Props {
   totalPages: number
 }
 
-// ✅ Consolidated form state — one re-render on dialog open instead of 3
 interface FormState {
   title: string
   youtubeUrl: string
@@ -428,7 +427,6 @@ const VideoRow = memo(function VideoRow({ video, onEdit, onToggle, onDelete }: V
       {/* Thumbnail */}
       <div className="w-24 h-14 rounded overflow-hidden bg-muted shrink-0">
         {video.thumbnail_url ? (
-          // ✅ native lazy loading — browser skips off-screen thumbnails
           <img
             src={video.thumbnail_url}
             alt={video.title}

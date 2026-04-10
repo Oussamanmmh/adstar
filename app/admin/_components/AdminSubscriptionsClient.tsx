@@ -315,17 +315,12 @@ export function AdminSubscriptionsClient({
             description: "السجل الكامل للاشتراكات",
             showActions: false,
           }
-
-  // ✅ Single handler for both approve + reject — eliminates the duplicate
-  //    handleApprove / handleReject functions from the original
   const handleDecision = useCallback((subId: string, decision: Decision) => {
     setProcessingId(subId)
 
     startDecisionTransition(async () => {
-      // ✅ DB enum is "pending" | "active" | "expired" — no "rejected"
       const nextStatus = decision === "approved" ? "active" : "expired"
 
-      // Optimistically move the row to its new status immediately
       startTransition(() =>
         dispatchOptimistic({ type: "SET_STATUS", id: subId, status: nextStatus }),
       )

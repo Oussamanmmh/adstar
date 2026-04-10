@@ -63,9 +63,6 @@ export function AdminUsersClient({
 }: Props) {
   const [optimisticUsers, dispatchOptimistic] = useOptimistic(initialUsers, optimisticReducer)
 
-  // ✅ useDeferredValue keeps the search input snappy even with large user lists
-  // React renders the list with the old query first, then re-renders with the new one
-  // — the input never feels laggy
   const [searchQuery, setSearchQuery] = useReducer(
     (_: string, next: string) => next,
     "",
@@ -81,7 +78,6 @@ export function AdminUsersClient({
 
   if (fetchError) toast.error(fetchError)
 
-  // ✅ Filtered list only recomputes when deferredQuery or users change
   const filteredUsers =
     deferredQuery.trim() === ""
       ? optimisticUsers

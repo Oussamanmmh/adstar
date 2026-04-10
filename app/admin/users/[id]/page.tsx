@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, DollarSign, TrendingUp, Wallet, PlayCircle, CreditCard } from "lucide-react"
+import { BanUserSwitch } from "./_components/BanUserSwitch"
 
 export default async function AdminUserDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -30,7 +31,19 @@ export default async function AdminUserDetailsPage({ params }: { params: Promise
     )
   }
 
-  const { profile, totals, activity } = result.data
+  const { profile, totals, activity, subscriptions } = result.data
+
+  const getStatusBadge = (status: "pending" | "active" | "expired") => {
+    if (status === "active") {
+      return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">نشط</Badge>
+    }
+
+    if (status === "pending") {
+      return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">معلق</Badge>
+    }
+
+    return <Badge variant="outline">منتهي</Badge>
+  }
 
   return (
     <div className="space-y-6">
@@ -54,7 +67,8 @@ export default async function AdminUserDetailsPage({ params }: { params: Promise
               <CardTitle>{profile.full_name || "بدون اسم"}</CardTitle>
               <CardDescription>{profile.email || "بدون بريد"}</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <BanUserSwitch userId={profile.id} isBanned={profile.is_banned} isAdmin={profile.is_admin} />
               {profile.is_admin && <Badge className="bg-primary/10 text-primary border-primary/20">مسؤول</Badge>}
               {profile.is_banned ? (
                 <Badge className="bg-destructive/10 text-destructive border-destructive/20">محظور</Badge>
@@ -175,6 +189,40 @@ export default async function AdminUserDetailsPage({ params }: { params: Promise
           <p>
             <span className="text-muted-foreground">إجمالي الاشتراكات:</span> {totals.subscriptionsCount}
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>جميع الاشتراكات</CardTitle>
+          <CardDescription>عرض كامل لاشتراكات المستخدم الحالية والسابقة</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {subscriptions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">لا توجد اشتراكات لهذا المستخدم حتى الآن</p>
+          ) : (
+            subscriptions.map((subscription) => (
+              <div
+                key={subscription.id}
+                className="rounded-lg border border-border/60 p-3 space-y-2 bg-card/60"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="font-medium">{subscription.package_name}</p>
+                  {getStatusBadge(subscription.status)}
+                </div>
+                <div className="grid gap-1 text-sm text-muted-foreground">
+                  <p>تاريخ الإنشاء: {new Date(subscription.created_at).toLocaleString("ar-EG")}</p>
+                  <p>
+                    تاريخ البدء: {subscription.started_at ? new Date(subscription.started_at).toLocaleString("ar-EG") : "-"}
+                  </p>
+                  <p>
+                    تاريخ الانتهاء: {subscription.expires_at ? new Date(subscription.expires_at).toLocaleString("ar-EG") : "-"}
+                  </p>
+                  <p className="break-all">TxHash: {subscription.tx_hash || "-"}</p>
+                </div>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

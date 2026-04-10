@@ -143,13 +143,11 @@ export function AdminPackagesClient({
 }: Props) {
   const router = useRouter()
 
-  // ✅ useOptimistic for instant UI feedback without full refetch
   const [optimisticPackages, dispatchOptimistic] = useOptimistic(
     initialPackages,
     optimisticReducer,
   )
 
-  // ✅ Single reducer for all form fields — one re-render on open instead of 6
   const [form, dispatchForm] = useReducer(formReducer, DEFAULT_FORM)
 
   const [editingPackage, setEditingPackage] = useReducer(
@@ -165,17 +163,13 @@ export function AdminPackagesClient({
     null,
   )
 
-  // ✅ useTransition tracks pending state without blocking the UI
   const [isSubmitting, startSubmitTransition] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
 
-  // ─── Show fetch error once on mount ────────────────────────────────────────
   if (fetchError) {
-    // Server already showed this but toast it for visibility
     toast.error(fetchError)
   }
 
-  // ─── Handlers (useCallback = stable refs, no unnecessary re-renders) ───────
 
   const handleOpenAddDialog = useCallback(() => {
     dispatchForm({ type: "RESET" })
@@ -257,12 +251,10 @@ export function AdminPackagesClient({
 
   const handleTogglePackageStatus = useCallback(
     (row: AdminPackageRow, nextValue: boolean) => {
-      // ✅ Instant toggle — no loading spinner, no full refetch
       startTransition(() => dispatchOptimistic({ type: "TOGGLE", id: row.id, isActive: nextValue }))
 
       void toggleAdminPackageStatus({ id: row.id, isActive: nextValue }).then((result) => {
         if (!result.success) {
-          // Revert optimistic update on failure
           startTransition(() =>
             dispatchOptimistic({ type: "TOGGLE", id: row.id, isActive: !nextValue }),
           )

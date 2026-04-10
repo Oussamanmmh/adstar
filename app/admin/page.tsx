@@ -1,94 +1,47 @@
-"use client"
-
-import { useEffect, useState } from "react"
 import Link from "next/link"
 import { getAdminDashboardData } from "@/lib/actions/admin"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import { 
-  Users, 
+import { AdminDashboardCharts } from "./_components/AdminDashboardCharts"
+import {
+  Users,
   Package,
-  CreditCard, 
-  Wallet, 
-  DollarSign, 
+  CreditCard,
+  Wallet,
+  DollarSign,
   TrendingUp,
   ArrowRight,
-  Clock
+  Clock,
 } from "lucide-react"
-import type { DashboardStats } from "@/lib/types"
 
-export default function AdminDashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export const dynamic = "force-dynamic"
 
-  useEffect(() => {
-    async function loadData() {
-      setIsLoading(true)
-      const result = await getAdminDashboardData()
+export default async function AdminDashboardPage() {
+  const result = await getAdminDashboardData()
 
-      if (!result.success) {
-        setError(result.error)
-        setIsLoading(false)
-        return
-      }
-
-      setStats(result.data)
-      setError(null)
-      setIsLoading(false)
-    }
-
-    void loadData()
-  }, [])
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <Skeleton className="h-9 w-48" />
-          <Skeleton className="mt-2 h-4 w-60" />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Card key={index}>
-              <CardHeader className="pb-2">
-                <Skeleton className="h-4 w-20" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-24" />
-                <Skeleton className="mt-2 h-3 w-20" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !stats) {
+  if (!result.success) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>تعذر تحميل لوحة الإدارة</CardTitle>
-          <CardDescription>{error ?? "حدث خطأ غير متوقع"}</CardDescription>
+          <CardDescription>{result.error ?? "حدث خطأ غير متوقع"}</CardDescription>
         </CardHeader>
       </Card>
     )
   }
 
+  const stats = result.data
   const pendingSubsCount = stats.pendingSubscriptions
   const pendingWithdrawalsCount = stats.pendingWithdrawals
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold">لوحة الإدارة</h1>
+        <h1 className="text-2xl font-bold md:text-3xl">لوحة الإدارة</h1>
         <p className="text-muted-foreground">نظرة عامة على مؤشرات المنصة</p>
       </div>
 
-      {/* Stats Grid */}
+      {/* ── Stats Grid ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -135,7 +88,16 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      {/* Pending Actions */}
+      <AdminDashboardCharts
+        totalUsers={stats.totalUsers}
+        activeSubscriptions={stats.activeSubscriptions}
+        pendingSubscriptions={stats.pendingSubscriptions}
+        pendingWithdrawals={stats.pendingWithdrawals}
+        totalPaidOut={stats.totalPaidOut}
+        totalEarnings={stats.totalEarnings}
+      />
+
+      {/* ── Pending Actions ── */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card className={pendingSubsCount > 0 ? "border-primary/50" : ""}>
           <CardHeader>
@@ -145,12 +107,10 @@ export default function AdminDashboardPage() {
                   <Clock className="h-5 w-5 text-primary" />
                   الاشتراكات المعلّقة
                 </CardTitle>
-                <CardDescription>
-                  دفعات الاشتراك بانتظار الموافقة
-                </CardDescription>
+                <CardDescription>دفعات الاشتراك بانتظار الموافقة</CardDescription>
               </div>
               {pendingSubsCount > 0 && (
-                <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
                   {pendingSubsCount}
                 </div>
               )}
@@ -165,7 +125,7 @@ export default function AdminDashboardPage() {
                 </Link>
               </Button>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
+              <p className="py-4 text-center text-sm text-muted-foreground">
                 لا توجد اشتراكات معلّقة
               </p>
             )}
@@ -180,12 +140,10 @@ export default function AdminDashboardPage() {
                   <Wallet className="h-5 w-5 text-primary" />
                   السحوبات المعلّقة
                 </CardTitle>
-                <CardDescription>
-                  طلبات السحب بانتظار الموافقة
-                </CardDescription>
+                <CardDescription>طلبات السحب بانتظار الموافقة</CardDescription>
               </div>
               {pendingWithdrawalsCount > 0 && (
-                <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
                   {pendingWithdrawalsCount}
                 </div>
               )}
@@ -200,7 +158,7 @@ export default function AdminDashboardPage() {
                 </Link>
               </Button>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
+              <p className="py-4 text-center text-sm text-muted-foreground">
                 لا توجد سحوبات معلّقة
               </p>
             )}
@@ -208,7 +166,7 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      {/* Quick Links */}
+      {/* ── Quick Links ── */}
       <Card>
         <CardHeader>
           <CardTitle>إجراءات سريعة</CardTitle>
@@ -242,7 +200,7 @@ export default function AdminDashboardPage() {
             </Button>
             <Button variant="outline" asChild>
               <Link href="/admin/videos">
-                <Users className="mr-2 h-4 w-4" />
+                <Package className="mr-2 h-4 w-4" />
                 الفيديوهات
               </Link>
             </Button>

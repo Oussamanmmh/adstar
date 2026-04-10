@@ -250,7 +250,6 @@ export function AdminWithdrawalsClient({
     optimisticReducer,
   )
 
-  // ✅ Track which row is in-flight (not a boolean — supports concurrent clicks)
   const [processingId, setProcessingId] = useReducer(
     (_: string | null, next: string | null) => next,
     null,
@@ -259,7 +258,6 @@ export function AdminWithdrawalsClient({
 
   if (fetchError) toast.error(fetchError)
 
-  // ✅ useMemo — recomputes only when optimisticWithdrawals changes, not on every render
   const { pendingCount, totalPending } = useMemo(() => {
     let count = 0
     let total = 0
@@ -315,9 +313,6 @@ export function AdminWithdrawalsClient({
         </p>
       </div>
 
-      {/* ✅ Stats card isolated in memo — approving a row won't re-render it
-          until the optimistic list actually changes (which also triggers
-          the pendingCount/totalPending recompute) */}
       <WithdrawalStats pendingCount={pendingCount} totalPending={totalPending} />
 
       <Card>

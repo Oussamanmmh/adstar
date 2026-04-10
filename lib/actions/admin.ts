@@ -37,6 +37,15 @@ export type AdminUserDetails = {
     is_banned: boolean
     created_at: string
   }
+  subscriptions: {
+    id: string
+    status: 'pending' | 'active' | 'expired'
+    tx_hash: string | null
+    created_at: string
+    started_at: string | null
+    expires_at: string | null
+    package_name: string
+  }[]
   totals: {
     totalRevenue: number
     totalDeposits: number
@@ -453,7 +462,7 @@ export async function getAdminUserDetails(userId: string) {
       .order('rated_at', { ascending: false }),
     admin.supabase
       .from('user_subscriptions')
-      .select('id, status, started_at, expires_at, package:packages(name)')
+      .select('id, status, tx_hash, created_at, started_at, expires_at, package:packages(name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false }),
     admin.supabase
@@ -517,6 +526,32 @@ export async function getAdminUserDetails(userId: string) {
     ? getProfileValue(activeSubscription.package as { name: string } | { name: string }[] | null)
     : null
 
+  const subscriptions = (subscriptionsRows ?? []).map((row) => {
+    const subscriptionRow = row as {
+      id: string
+      status: 'pending' | 'active' | 'expired'
+      tx_hash?: string | null
+      created_at?: string
+      started_at: string | null
+      expires_at: string | null
+      package: { name: string } | { name: string }[] | null
+    }
+
+    const rowPackage = getProfileValue(
+      subscriptionRow.package as { name: string } | { name: string }[] | null
+    )
+
+    return {
+      id: subscriptionRow.id,
+      status: subscriptionRow.status,
+      tx_hash: subscriptionRow.tx_hash ?? null,
+      created_at: subscriptionRow.created_at ?? subscriptionRow.started_at ?? new Date().toISOString(),
+      started_at: subscriptionRow.started_at,
+      expires_at: subscriptionRow.expires_at,
+      package_name: rowPackage?.name ?? 'غير معروف',
+    }
+  })
+
   return {
     success: true as const,
     data: {
@@ -530,6 +565,7 @@ export async function getAdminUserDetails(userId: string) {
         is_banned: !!profile.is_banned,
         created_at: profile.created_at,
       },
+      subscriptions,
       totals: {
         totalRevenue,
         totalDeposits,
