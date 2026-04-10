@@ -115,7 +115,7 @@ export default function WithdrawPage() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [balance, setBalance] = useState(0)
+  const [withdrawableBalance, setWithdrawableBalance] = useState(0)
   const [walletAddress, setWalletAddress] = useState("")
   const [network, setNetwork] = useState<WithdrawalNetwork>("trc20")
   const [amount, setAmount] = useState("")
@@ -132,7 +132,7 @@ export default function WithdrawPage() {
       return
     }
 
-    setBalance(result.data.balance)
+    setWithdrawableBalance(result.data.withdrawableBalance)
     setHasPendingWithdrawal(result.data.hasPendingWithdrawal)
     setWithdrawals(result.data.withdrawals)
     setWalletAddress((current) => current || result.data.walletAddress)
@@ -145,7 +145,7 @@ export default function WithdrawPage() {
 
   const numericAmount = Number(amount)
   const isAmountInvalid =
-    !amount || Number.isNaN(numericAmount) || numericAmount < MIN_WITHDRAWAL || numericAmount > balance
+    !amount || Number.isNaN(numericAmount) || numericAmount < MIN_WITHDRAWAL || numericAmount > withdrawableBalance
   const isWalletInvalid = walletAddress.trim().length < 20
   const isFormInvalid = isAmountInvalid || isWalletInvalid || hasPendingWithdrawal || isSubmitting
 
@@ -167,8 +167,8 @@ export default function WithdrawPage() {
       return
     }
 
-    if (numericAmount > balance) {
-      toast.error("المبلغ المطلوب أكبر من رصيدك المتاح")
+    if (numericAmount > withdrawableBalance) {
+      toast.error("المبلغ المطلوب أكبر من أرباح التقييمات المتاحة للسحب")
       return
     }
 
@@ -232,7 +232,8 @@ export default function WithdrawPage() {
           ) : (
             <>
               <p className="text-sm text-muted-foreground">الرصيد المتاح للسحب</p>
-              <p className="text-4xl font-extrabold text-primary">${balance.toFixed(2)}</p>
+              <p className="text-4xl font-extrabold text-primary">${withdrawableBalance.toFixed(2)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">هذا المبلغ من أرباح تقييم الفيديوهات فقط</p>
               <p className="text-xs text-muted-foreground">USDT</p>
             </>
           )}
@@ -320,7 +321,7 @@ export default function WithdrawPage() {
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       min={MIN_WITHDRAWAL}
-                      max={balance}
+                      max={withdrawableBalance}
                       step="0.01"
                       placeholder="5"
                     />

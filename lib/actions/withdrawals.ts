@@ -65,6 +65,10 @@ function mapDbErrorToArabic(message: string): string {
     return 'الرصيد غير كاف لإتمام عملية السحب'
   }
 
+  if (message.includes('insufficient withdrawable rating earnings')) {
+    return 'يمكنك سحب أرباح التقييمات فقط، والمبلغ المطلوب أكبر من المتاح'
+  }
+
   if (message.includes('withdrawal request is not pending')) {
     return 'تمت معالجة هذا الطلب بالفعل'
   }
@@ -89,7 +93,11 @@ export async function getMyWithdrawalData() {
     }
   }
 
-  const [{ data: profile, error: profileError }, { data: withdrawals, error: withdrawalsError }] =
+  const [
+    { data: profile, error: profileError },
+    { data: withdrawals, error: withdrawalsError },
+    { data: earnings, error: earningsError },
+  ] =
     await Promise.all([
       supabase
         .from('profiles')
@@ -101,9 +109,14 @@ export async function getMyWithdrawalData() {
         .select('id, amount_usdt, wallet_address, network, status, requested_at, processed_at')
         .eq('user_id', user.id)
         .order('requested_at', { ascending: false }),
+      supabase
+        .from('earnings')
+        .select('amount_usdt')
+        .eq('user_id', user.id)
+        .eq('source', 'rating'),
     ])
 
-  if (profileError || withdrawalsError) {
+  if (profileError || withdrawalsError || earningsError) {
     return {
       success: false as const,
       error: 'تعذر تحميل بيانات السحب حاليا',
@@ -111,11 +124,20 @@ export async function getMyWithdrawalData() {
   }
 
   const withdrawalRows = (withdrawals ?? []) as WithdrawalRow[]
+  const totalRatingEarnings = (earnings ?? []).reduce(
+    (sum, row) => sum + Number((row as { amount_usdt: number }).amount_usdt ?? 0),
+    0
+  )
+  const withdrawnOrPending = withdrawalRows
+    .filter((row) => row.status === 'approved' || row.status === 'pending')
+    .reduce((sum, row) => sum + Number(row.amount_usdt ?? 0), 0)
+  const withdrawableFromRatings = Math.max(0, totalRatingEarnings - withdrawnOrPending)
 
   return {
     success: true as const,
     data: {
       balance: Number(profile?.balance_usdt ?? 0),
+      withdrawableBalance: withdrawableFromRatings,
       walletAddress: profile?.wallet_address ?? '',
       hasPendingWithdrawal: withdrawalRows.some((row) => row.status === 'pending'),
       withdrawals: withdrawalRows,
@@ -150,6 +172,44 @@ export async function submitWithdrawalRequest(input: {
   }
 
   const { network, walletAddress, amount } = parsed.data
+
+  const [{ data: earnings, error: earningsError }, { data: withdrawals, error: withdrawalsError }] =
+    await Promise.all([
+      supabase
+        .from('earnings')
+        .select('amount_usdt')
+        .eq('user_id', user.id)
+        .eq('source', 'rating'),
+      supabase
+        .from('withdrawals')
+        .select('amount_usdt, status')
+        .eq('user_id', user.id)
+        .in('status', ['pending', 'approved']),
+    ])
+
+  if (earningsError || withdrawalsError) {
+    return {
+      success: false as const,
+      error: 'تعذر التحقق من رصيد أرباح التقييمات حالياً',
+    }
+  }
+
+  const totalRatingEarnings = (earnings ?? []).reduce(
+    (sum, row) => sum + Number((row as { amount_usdt: number }).amount_usdt ?? 0),
+    0
+  )
+  const withdrawnOrPending = (withdrawals ?? []).reduce(
+    (sum, row) => sum + Number((row as { amount_usdt: number }).amount_usdt ?? 0),
+    0
+  )
+  const withdrawableFromRatings = Math.max(0, totalRatingEarnings - withdrawnOrPending)
+
+  if (amount > withdrawableFromRatings) {
+    return {
+      success: false as const,
+      error: 'يمكنك سحب أرباح التقييمات فقط، والمبلغ المطلوب أكبر من المتاح',
+    }
+  }
 
   const { error } = await supabase.rpc('request_withdrawal', {
     p_network: network,
