@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { submitDeposit } from "@/lib/actions/deposit"
 import type { Network } from "@/lib/types"
+import Image from "next/image"
 
 // ─── Network config (client-safe — only public env vars) ─────────────────────
 
@@ -36,6 +37,7 @@ const NETWORK_CONFIG = {
     accentClass: "text-red-400",
     bgClass: "bg-red-400/10",
     borderClass: "border-red-400/30",
+    qrCodeUrl :"/qrs/TRC-ADR.jpeg",
     warnings: [
       "أرسل USDT فقط عبر شبكة TRC20",
       "لا ترسل TRX أو عملات أخرى",
@@ -54,6 +56,7 @@ const NETWORK_CONFIG = {
     accentClass: "text-yellow-400",
     bgClass: "bg-yellow-400/10",
     borderClass: "border-yellow-400/30",
+    qrCodeUrl :"/qrs/BEP-ADR.jpeg",
     warnings: [
       "أرسل USDT فقط عبر شبكة BEP20 (BSC)",
       "لا ترسل عبر شبكة ETH أو غيرها",
@@ -261,7 +264,7 @@ export default function NetworkDepositPage() {
 
               {/* QR Code */}
               {config.adminWallet ? (
-                <QRCode address={config.adminWallet} size={180} />
+                <Image src={config.qrCodeUrl} alt={`QR Code لعنوان ${config.name}`} width={180} height={180} className="rounded-2xl border" />
               ) : (
                 <div className="w-[180px] h-[180px] rounded-2xl border border-dashed border-border flex items-center justify-center text-xs text-muted-foreground text-center p-4">
                   لم يتم تكوين عنوان المحفظة بعد

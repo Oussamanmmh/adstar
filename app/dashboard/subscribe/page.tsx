@@ -113,84 +113,23 @@ export default function SubscribePage() {
     )
   }
 
-  // Has active subscription
-  if (activeSubscription) {
-    const pkg = packages.find((p) => p.id === activeSubscription.package_id)
-    const daysRemaining = activeSubscription.expires_at
-      ? Math.max(0, Math.ceil((new Date(activeSubscription.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-      : 0
+  const activePackage = activeSubscription
+    ? packages.find((p) => p.id === activeSubscription.package_id)
+    : null
+  const pendingPackage = pendingSubscription
+    ? packages.find((p) => p.id === pendingSubscription.package_id)
+    : null
+  const daysRemaining = activeSubscription?.expires_at
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(activeSubscription.expires_at).getTime() - Date.now()) /
+            (1000 * 60 * 60 * 24),
+        ),
+      )
+    : 0
 
-    return (
-      <div className="space-y-6">
-        <Link 
-          href="/dashboard" 
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          العودة إلى اللوحة
-        </Link>
-
-        <Card className="max-w-md mx-auto text-center">
-          <CardHeader>
-            <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <CheckCircle className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle>اشتراك نشط</CardTitle>
-            <CardDescription>
-              أنت مشترك حالياً في باقة {pkg?.name}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg bg-muted/50">
-              <div className="text-3xl font-bold">{daysRemaining} days</div>
-              <div className="text-sm text-muted-foreground">متبقي</div>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              ينتهي في: {activeSubscription.expires_at ? new Date(activeSubscription.expires_at).toLocaleDateString("ar-EG") : "-"}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  // Has pending subscription
-  if (pendingSubscription) {
-    const pkg = packages.find((p) => p.id === pendingSubscription.package_id)
-
-    return (
-      <div className="space-y-6">
-        <Link 
-          href="/dashboard" 
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          العودة إلى اللوحة
-        </Link>
-
-        <Card className="max-w-md mx-auto text-center">
-          <CardHeader>
-            <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <Clock className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle>بانتظار الموافقة</CardTitle>
-            <CardDescription>
-              اشتراكك في باقة {pkg?.name} بانتظار موافقة الإدارة
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg bg-muted/50 text-left">
-              <div className="text-xs text-muted-foreground mb-1">معرّف العملية</div>
-              <div className="font-mono text-sm break-all">{pendingSubscription.tx_hash ?? pendingSubscription.id}</div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              عادة تتم مراجعة الدفعات خلال 24 ساعة، وسيصلك إشعار بعد الموافقة.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  const hasBlockedPurchase = !!activeSubscription || !!pendingSubscription
 
   return (
     <div className="space-y-6">
@@ -201,6 +140,52 @@ export default function SubscribePage() {
         <ArrowLeft className="h-4 w-4" />
         العودة إلى اللوحة
       </Link>
+
+      {activeSubscription && (
+        <Card className="max-w-md text-center">
+          <CardHeader>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              <CheckCircle className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle>اشتراك نشط</CardTitle>
+            <CardDescription>
+              أنت مشترك حالياً في باقة {activePackage?.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg bg-muted/50 p-4">
+              <div className="text-3xl font-bold">{daysRemaining} days</div>
+              <div className="text-sm text-muted-foreground">متبقي</div>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              ينتهي في: {activeSubscription.expires_at ? new Date(activeSubscription.expires_at).toLocaleDateString("ar-EG") : "-"}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!activeSubscription && pendingSubscription && (
+        <Card className="max-w-md text-center">
+          <CardHeader>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              <Clock className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle>بانتظار الموافقة</CardTitle>
+            <CardDescription>
+              اشتراكك في باقة {pendingPackage?.name} بانتظار موافقة الإدارة
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg bg-muted/50 p-4 text-left">
+              <div className="mb-1 text-xs text-muted-foreground">معرّف العملية</div>
+              <div className="break-all font-mono text-sm">{pendingSubscription.tx_hash ?? pendingSubscription.id}</div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              عادة تتم مراجعة الدفعات خلال 24 ساعة، وسيصلك إشعار بعد الموافقة.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">اختر باقتك</h1>
@@ -247,9 +232,15 @@ export default function SubscribePage() {
                 className="w-full"
                 variant={pkg.price_usdt === 1500 ? "default" : "outline"}
                 onClick={() => handleBuyPackage(pkg)}
-                disabled={isSubmittingId === pkg.id}
+                disabled={isSubmittingId === pkg.id || hasBlockedPurchase}
               >
-                {isSubmittingId === pkg.id ? "جارٍ الشراء..." : "اشترك الآن"}
+                {isSubmittingId === pkg.id
+                  ? "جارٍ الشراء..."
+                  : activeSubscription
+                    ? "لديك اشتراك نشط"
+                    : pendingSubscription
+                      ? "طلب قيد المراجعة"
+                      : "اشترك الآن"}
               </Button>
             </CardContent>
           </Card>
