@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,6 @@ const loginSchema = z.object({
 
 export default function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { login, startAdminLogin, isAuthenticated, user } = useAuth()
   const supabase = getSupabaseBrowserClient()
 
@@ -45,9 +44,10 @@ export default function LoginPage() {
   }, [])
 
   useEffect(() => {
-    const recoveryParam = searchParams.get("recovery")
+    if (typeof window === "undefined") return
+    const recoveryParam = new URLSearchParams(window.location.search).get("recovery")
     setIsRecoveryMode(recoveryParam === "1")
-  }, [searchParams])
+  }, [])
 
   useEffect(() => {
     if (isAuthenticated && user) {
