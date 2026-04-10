@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { getDashboardData } from "@/lib/actions/subscriptions-rating"
@@ -11,7 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DollarSign, Play, Clock, TrendingUp, ArrowRight, AlertCircle, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
-// Types remain the same
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type UserSubscription = {
   id: string
   package_id: string
@@ -28,35 +29,57 @@ type PackageInfo = {
   videos_per_day: number
 }
 
+// Consolidated server state — one setState call instead of six
+type DashboardData = {
+  activeSubscription: UserSubscription | null
+  packageInfo: PackageInfo | null
+  todayRatingsCount: number
+  totalEarned: number
+  canRate: boolean
+  nextRatingTime: Date | null
+}
+
+// ─── CountdownTimer ───────────────────────────────────────────────────────────
+// Fix: clears the interval as soon as the countdown reaches zero instead of
+// continuing to fire every second setting the same "متاح الآن" string.
+
 function CountdownTimer({ targetTime }: { targetTime: Date }) {
   const [timeLeft, setTimeLeft] = useState("")
 
   useEffect(() => {
-    function updateTimer() {
-      const now = new Date()
-      const diff = targetTime.getTime() - now.getTime()
+    function tick() {
+      const diff = targetTime.getTime() - Date.now()
 
       if (diff <= 0) {
         setTimeLeft("متاح الآن")
+        clearInterval(id)
         return
       }
 
-      const hours = Math.floor(diff / (1000 * 60 * 60))
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-
-      setTimeLeft(`${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`)
+      const h = Math.floor(diff / 3_600_000)
+      const m = Math.floor((diff % 3_600_000) / 60_000)
+      const s = Math.floor((diff % 60_000) / 1_000)
+      setTimeLeft(
+        `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+      )
     }
 
-    updateTimer()
-    const interval = setInterval(updateTimer, 1000)
-    return () => clearInterval(interval)
+    tick()
+    const id = setInterval(tick, 1_000)
+    return () => clearInterval(id)
   }, [targetTime])
 
-  return <span className={timeLeft === "متاح الآن" ? "text-primary font-bold animate-pulse" : "font-mono"}>{timeLeft}</span>
+  if (!timeLeft) return null
+
+  return (
+    <span className={timeLeft === "متاح الآن" ? "text-primary font-bold animate-pulse" : "font-mono"}>
+      {timeLeft}
+    </span>
+  )
 }
 
-// 1. Dedicated Skeleton Component for seamless UX
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
 function DashboardSkeleton() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -66,11 +89,11 @@ function DashboardSkeleton() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
-          <Card key={i} className="border-border/50 bg-card/40 backdrop-blur-md">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} className="border-border/50 bg-card/40">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <Skeleton className="h-4 w-[100px]" />
-              <Skeleton className="h-4 w-4 rounded-full" />
+              <Skeleton className="h-8 w-8 rounded-lg" />
             </CardHeader>
             <CardContent>
               <Skeleton className="h-8 w-[120px] mb-2" />
@@ -80,36 +103,104 @@ function DashboardSkeleton() {
         ))}
       </div>
 
-      <Card className="border-border/50 bg-card/40 backdrop-blur-md">
+      {/* Subscription card skeleton */}
+      <Card className="border-border/50 bg-card/40">
         <CardHeader>
-          <Skeleton className="h-6 w-[150px] mb-2" />
-          <Skeleton className="h-4 w-[200px]" />
+          <div className="flex justify-between items-start">
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-[150px]" />
+              <Skeleton className="h-4 w-[220px]" />
+            </div>
+            <Skeleton className="h-6 w-14 rounded-full" />
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-2 w-full rounded-full" />
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-3 w-full rounded-full" />
+          </div>
+          <div className="flex justify-between pt-2 border-t border-border/50">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-4 w-36" />
+          </div>
         </CardContent>
       </Card>
+
+      {/* Quick actions skeleton */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i} className="border-border/50 bg-card/40">
+            <CardHeader>
+              <Skeleton className="h-5 w-36 mb-1" />
+              <Skeleton className="h-4 w-52" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const DAY_MS = 1_000 * 60 * 60 * 24
+
+/**
+ * Derives elapsed/remaining from the same source (`started_at`) with the same
+ * rounding direction so the two values always sum exactly to `duration_days`.
+ *
+ * Bug in original: elapsed = duration - Math.ceil(remaining) where remaining
+ * was computed from `expires_at`. With 28.6 actual days left:
+ *   Math.ceil(28.6) → 29  →  elapsed = 60 - 29 = 31   (UI showed "31 من 60")
+ * but the "متبقي" label used the ceiled value directly:
+ *   daysRemaining → 29                                  (UI showed "متبقي 29")
+ * Both numbers use different rounding on the same fractional day, causing the
+ * apparent contradiction. The fix uses Math.floor on elapsed from started_at.
+ */
+function computeDays(
+  subscription: UserSubscription | null,
+  packageInfo: PackageInfo | null,
+): { daysElapsed: number; daysRemaining: number; progressPercent: number } {
+  if (!subscription?.started_at || !packageInfo) {
+    return { daysElapsed: 0, daysRemaining: 0, progressPercent: 0 }
+  }
+
+  const daysElapsed = Math.min(
+    packageInfo.duration_days,
+    Math.floor((Date.now() - new Date(subscription.started_at).getTime()) / DAY_MS),
+  )
+  const daysRemaining = packageInfo.duration_days - daysElapsed
+  const progressPercent = (daysElapsed / packageInfo.duration_days) * 100
+
+  return { daysElapsed, daysRemaining, progressPercent }
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+const glassCardClass =
+  "border-border/30 bg-card/60 backdrop-blur-xl shadow-lg transition-all hover:bg-card/80"
+
 export default function DashboardPage() {
   const { user } = useAuth()
   const [isLoadingData, setIsLoadingData] = useState(true)
-  const [subscription, setSubscription] = useState<UserSubscription | null>(null)
-  const [packageInfo, setPackageInfo] = useState<PackageInfo | null>(null)
-  const [todayRatings, setTodayRatings] = useState(0)
-  const [totalEarned, setTotalEarned] = useState(0)
-  const [canRate, setCanRate] = useState(false)
-  const [nextRatingTime, setNextRatingTime] = useState<Date | null>(null)
+  const [data, setData] = useState<DashboardData>({
+    activeSubscription: null,
+    packageInfo: null,
+    todayRatingsCount: 0,
+    totalEarned: 0,
+    canRate: false,
+    nextRatingTime: null,
+  })
 
-  useEffect(() => {
-    if (!user) return
-    void loadDashboardData()
-  }, [user])
+  // ── Data loading — single setState eliminates 6 cascading renders ──────────
 
-  async function loadDashboardData() {
+  const loadDashboardData = useCallback(async () => {
     setIsLoadingData(true)
     try {
       const result = await getDashboardData()
@@ -119,48 +210,68 @@ export default function DashboardPage() {
         return
       }
 
-      setSubscription(result.data.activeSubscription)
-      setPackageInfo(result.data.packageInfo)
-      setTodayRatings(result.data.todayRatingsCount)
-      setTotalEarned(result.data.totalEarned)
-      setCanRate(result.data.canRate)
-      setNextRatingTime(result.data.nextRatingTime ? new Date(result.data.nextRatingTime) : null)
-    } catch (error) {
+      const d = result.data
+      setData({
+        activeSubscription: d.activeSubscription,
+        packageInfo: d.packageInfo,
+        todayRatingsCount: d.todayRatingsCount,
+        totalEarned: d.totalEarned,
+        canRate: d.canRate,
+        nextRatingTime: d.nextRatingTime ? new Date(d.nextRatingTime) : null,
+      })
+    } catch {
       toast.error("تعذر الاتصال بالخادم")
     } finally {
       setIsLoadingData(false)
     }
-  }
+  }, [])
 
-  // 2. Handle initial auth loading vs data loading
+  useEffect(() => {
+    if (!user) return
+    void loadDashboardData()
+  }, [user, loadDashboardData])
+
+  // ── Memoized derived values ────────────────────────────────────────────────
+
+  const { daysElapsed, daysRemaining, progressPercent } = useMemo(
+    () => computeDays(data.activeSubscription, data.packageInfo),
+    [data.activeSubscription, data.packageInfo],
+  )
+
+  const firstName = useMemo(() => user?.fullName?.split(" ")[0] ?? "", [user?.fullName])
+
+  const expiryLabel = useMemo(
+    () =>
+      data.activeSubscription?.expires_at
+        ? new Date(data.activeSubscription.expires_at).toLocaleDateString("ar-EG")
+        : "—",
+    [data.activeSubscription?.expires_at],
+  )
+
+  // ── Guards ────────────────────────────────────────────────────────────────
+
   if (!user || isLoadingData) return <DashboardSkeleton />
 
-  const daysRemaining = subscription?.expires_at
-    ? Math.max(0, Math.ceil((new Date(subscription.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-    : 0
+  const { activeSubscription, packageInfo, todayRatingsCount, totalEarned, canRate, nextRatingTime } =
+    data
 
-  const progressPercent = packageInfo 
-    ? ((packageInfo.duration_days - daysRemaining) / packageInfo.duration_days) * 100 
-    : 0
-
-  // 3. Glassmorphism base class for consistent modern styling
-  const glassCardClass = "border-border/30 bg-card/60 backdrop-blur-xl shadow-lg transition-all hover:bg-card/80"
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header Section */}
+      {/* Header */}
       <div className="relative">
         <div className="absolute -top-6 -right-6 w-32 h-32 bg-primary/20 rounded-full blur-3xl -z-10" />
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-l from-foreground to-foreground/70 bg-clip-text text-transparent">
-          مرحباً بعودتك، {user.fullName.split(" ")[0]}
+          مرحباً بعودتك، {firstName}
         </h1>
         <p className="text-muted-foreground mt-2 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
+          <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
           إليك ملخصاً سريعاً لأرباحك ونشاطك.
         </p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className={glassCardClass}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -196,7 +307,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{todayRatings}</div>
+            <div className="text-3xl font-bold">{todayRatingsCount}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {packageInfo ? `من ${packageInfo.videos_per_day} فيديو` : "لا يوجد اشتراك نشط"}
             </p>
@@ -214,9 +325,9 @@ export default function DashboardPage() {
             <div className="text-2xl md:text-3xl font-bold">
               {canRate ? (
                 <span className="text-primary flex items-center gap-2">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                  <span className="relative flex h-3 w-3 flex-shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
                   </span>
                   متاح الآن
                 </span>
@@ -231,18 +342,20 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Subscription Status */}
-      {subscription && packageInfo ? (
+      {/* Subscription status */}
+      {activeSubscription && packageInfo ? (
         <Card className={glassCardClass}>
           <CardHeader>
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle className="text-xl">حالة الاشتراك</CardTitle>
                 <CardDescription className="mt-1">
-                  باقة {packageInfo.name} - أرباح <span className="text-primary font-semibold">${packageInfo.daily_earnings}</span> يومياً
+                  باقة {packageInfo.name} ·{" "}
+                  <span className="text-primary font-semibold">${packageInfo.daily_earnings}</span>{" "}
+                  ربح يومي
                 </CardDescription>
               </div>
-              <div className="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs font-semibold">
+              <div className="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs font-semibold whitespace-nowrap">
                 نشط
               </div>
             </div>
@@ -251,27 +364,29 @@ export default function DashboardPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm font-medium">
                 <span className="text-foreground">التقدم</span>
-                <span className="text-primary">{packageInfo.duration_days - daysRemaining} من {packageInfo.duration_days} يوم</span>
+                {/* FIX: both numbers derived from the same daysElapsed so they  */}
+                {/* always satisfy: elapsed + remaining === duration_days        */}
+                <span className="text-primary">
+                  {daysElapsed} من {packageInfo.duration_days} يوم
+                </span>
               </div>
               <Progress value={progressPercent} className="h-3 bg-muted/50" />
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-border/50">
-              <span className="text-sm font-medium">
-                متبقي {daysRemaining} يوم
-              </span>
+              <span className="text-sm font-medium">متبقي {daysRemaining} يوم</span>
               <span className="text-sm text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                ينتهي في: {subscription.expires_at ? new Date(subscription.expires_at).toLocaleDateString("ar-EG") : "-"}
+                <Clock className="h-3 w-3 flex-shrink-0" />
+                ينتهي في: {expiryLabel}
               </span>
             </div>
           </CardContent>
         </Card>
       ) : (
         <Card className="border-primary/30 bg-primary/5 backdrop-blur-md relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+          <div className="absolute top-0 right-0 w-1 h-full bg-primary" />
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-primary/20 rounded-xl">
+              <div className="p-3 bg-primary/20 rounded-xl flex-shrink-0">
                 <AlertCircle className="h-6 w-6 text-primary" />
               </div>
               <div>
@@ -293,28 +408,26 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Quick Actions */}
+      {/* Quick actions */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className={glassCardClass}>
           <CardHeader>
             <CardTitle className="text-lg">تقييم الفيديوهات</CardTitle>
-            <CardDescription>
-              اربح USDT عبر مشاهدة الفيديوهات وتقييمها
-            </CardDescription>
+            <CardDescription>اربح USDT عبر مشاهدة الفيديوهات وتقييمها</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button 
-              className="w-full font-bold transition-all text-white" 
+            <Button
+              className="w-full font-bold text-white"
               size="lg"
-              disabled={!subscription || !canRate}
-              asChild={subscription && canRate ? true : undefined}
+              disabled={!activeSubscription || !canRate}
+              asChild={activeSubscription !== null && canRate ? true : undefined}
             >
-              {subscription && canRate ? (
-                <Link href="/dashboard/rate" >
+              {activeSubscription && canRate ? (
+                <Link href="/dashboard/rate">
                   <Play className="ml-2 h-4 w-4 fill-current" />
                   ابدأ التقييم الآن
                 </Link>
-              ) : !subscription ? (
+              ) : !activeSubscription ? (
                 "اشترك أولاً لتبدأ"
               ) : (
                 "انتظر انتهاء الفاصل الزمني"
@@ -326,13 +439,11 @@ export default function DashboardPage() {
         <Card className={glassCardClass}>
           <CardHeader>
             <CardTitle className="text-lg">سحب الأرباح</CardTitle>
-            <CardDescription>
-              حوّل أرباحك مباشرة إلى محفظتك الرقمية
-            </CardDescription>
+            <CardDescription>حوّل أرباحك مباشرة إلى محفظتك الرقمية</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button 
-              variant={user.balance_usdt >= 5 ? "default" : "secondary"} 
+            <Button
+              variant={user.balance_usdt >= 5 ? "default" : "secondary"}
               size="lg"
               className="w-full font-bold"
               disabled={user.balance_usdt < 5}

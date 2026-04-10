@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Spinner } from "@/components/ui/spinner"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import { Star, Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 import { z } from "zod"
 
 const loginSchema = z.object({
@@ -20,10 +20,9 @@ const loginSchema = z.object({
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login, startAdminLogin, isAuthenticated, user } = useAuth()
+  const { login, isAuthenticated, user } = useAuth()
   const supabase = getSupabaseBrowserClient()
 
-  const [mode, setMode] = useState<"user" | "admin">("user")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -62,8 +61,6 @@ export default function LoginPage() {
   async function handleResetPasswordSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    
-
     if (newPassword !== confirmNewPassword) {
       toast.error("كلمتا المرور غير متطابقتين")
       return
@@ -96,10 +93,7 @@ export default function LoginPage() {
 
     setIsLoading(true)
 
-    const result =
-      mode === "admin"
-        ? await startAdminLogin(validated.data.email, validated.data.password)
-        : await login(validated.data.email, validated.data.password)
+    const result = await login(validated.data.email, validated.data.password)
 
     if (result.success) {
       if (rememberMe) {
@@ -171,45 +165,14 @@ export default function LoginPage() {
       <div className="w-full max-w-md z-10 rounded-2xl border border-primary/20 bg-card/90 backdrop-blur-md p-5 sm:p-6">
         <div className="mb-5 text-center">
           <h1 className="text-xl font-bold">تسجيل الدخول</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {mode === "admin" ? "دخول مباشر إلى لوحة الإدارة" : "ادخل إلى حسابك لمتابعة الربح"}
-          </p>
-        </div>
-
-        <div className="flex rounded-xl bg-secondary/70 p-1 mb-6 border border-border/70">
-          <button
-            type="button"
-            onClick={() => {
-              setMode("user")
-            }}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
-              mode === "user"
-                ? "bg-primary text-primary-foreground "
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            دخول المستخدم
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("admin")
-            }}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
-              mode === "admin"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            دخول الإدارة
-          </button>
+          <p className="text-sm text-muted-foreground mt-1">ادخل إلى حسابك لمتابعة الربح</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="relative">
               <Input
                 type="email"
-                placeholder={mode === "admin" ? "بريد المسؤول" : "البريد الإلكتروني"}
+                placeholder="البريد الإلكتروني"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -266,8 +229,6 @@ export default function LoginPage() {
                   <Spinner className="mr-2" />
                   جارٍ تسجيل الدخول...
                 </>
-              ) : mode === "admin" ? (
-                "دخول الإدارة"
               ) : (
                 "تسجيل الدخول"
               )}

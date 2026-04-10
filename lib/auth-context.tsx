@@ -18,7 +18,6 @@ interface AuthResult {
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<AuthResult>
   register: (params: RegisterParams) => Promise<AuthResult>
-  startAdminLogin: (email: string, password: string) => Promise<AuthResult>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -166,14 +165,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (appUser.isAdmin) {
-        await safeSignOut(true)
-        return {
-          success: false,
-          error: "حساب الإدارة يتطلب تأكيد رمز البريد الإلكتروني. استخدم تسجيل دخول الإدارة.",
-        }
-      }
-
       setState({ user: appUser, isLoading: false, isAuthenticated: true })
       return { success: true }
     },
@@ -216,39 +207,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refreshUser, supabase]
   )
 
-  const startAdminLogin = useCallback(
-    async (email: string, password: string): Promise<AuthResult> => {
-      const normalizedEmail = email.trim().toLowerCase()
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      })
-
-      if (error || !data.user) {
-        return { success: false, error: "بيانات تسجيل الدخول غير صحيحة" }
-      }
-
-      const appUser = await toAppUser(data.user.id)
-      if (!appUser?.isAdmin) {
-        await safeSignOut(true)
-        return { success: false, error: "هذا الحساب ليس حساب مسؤول" }
-      }
-
-      if (appUser.isBanned) {
-        await safeSignOut(true)
-        return {
-          success: false,
-          error: "تم حظر هذا الحساب. يرجى التواصل مع الدعم.",
-        }
-      }
-
-      setState({ user: appUser, isLoading: false, isAuthenticated: true })
-      return { success: true }
-    },
-    [supabase, toAppUser]
-  )
-
   const logout = useCallback(async () => {
     setState({
       user: null,
@@ -266,7 +224,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...state,
         login,
         register,
-        startAdminLogin,
         logout,
         refreshUser,
       }}
