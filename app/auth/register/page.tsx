@@ -72,7 +72,6 @@ export default function RegisterPage() {
 
     if (result.success) {
       toast.success("تم إنشاء الحساب بنجاح!")
-      toast.info("إذا لم يتم تسجيل دخولك مباشرة، تحقق من بريدك الإلكتروني لتأكيد الحساب")
     } else {
       toast.error(result.error || "فشل إنشاء الحساب")
     }

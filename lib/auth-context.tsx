@@ -184,28 +184,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async ({ email, password, fullName }: RegisterParams): Promise<AuthResult> => {
       const normalizedEmail = email.trim().toLowerCase()
 
-      const callbackUrl =
-        typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined
-
-      const { data, error } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          emailRedirectTo: callbackUrl,
-          data: {
-            full_name: fullName,
-          },
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+          fullName,
+        }),
       })
 
-      if (error) {
-        return { success: false, error: error.message }
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null
+        return { success: false, error: payload?.error ?? "فشل إنشاء الحساب" }
       }
 
-      if (!data.session) {
-        return {
-          success: true,
-        }
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      })
+
+      if (signInError) {
+        return { success: false, error: "تم إنشاء الحساب لكن تعذر تسجيل الدخول تلقائيا" }
       }
 
       await refreshUser()
