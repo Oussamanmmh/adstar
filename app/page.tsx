@@ -125,7 +125,7 @@ const testimonials = [
 ]
 
 export default function LandingPage() {
-  const { isAuthenticated, user, isLoading } = useAuth()
+  const { isAuthenticated, user } = useAuth()
 
   const getDashboardLink = () => {
     if (!isAuthenticated) return "/auth/login"
@@ -154,7 +154,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3 ">
-            {isLoading ? null : isAuthenticated ? (
+            {isAuthenticated ? (
               <Button asChild className="rounded-xl text-white">
                 <Link href={getDashboardLink()}>
                   الذهاب إلى اللوحة
