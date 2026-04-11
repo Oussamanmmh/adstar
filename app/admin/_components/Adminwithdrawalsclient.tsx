@@ -272,6 +272,16 @@ export function AdminWithdrawalsClient({
 
   const handleDecision = useCallback(
     (withdrawalId: string, decision: "approved" | "rejected") => {
+      let rejectionReason = ""
+
+      if (decision === "rejected") {
+        const enteredReason = window.prompt("اكتب سبب الرفض (اختياري):", "")
+        if (enteredReason === null) {
+          return
+        }
+        rejectionReason = enteredReason.trim()
+      }
+
       setProcessingId(withdrawalId)
 
       startDecisionTransition(async () => {
@@ -280,7 +290,11 @@ export function AdminWithdrawalsClient({
           dispatchOptimistic({ type: "SET_STATUS", id: withdrawalId, status: decision }),
         )
 
-        const result = await processWithdrawalRequest({ withdrawalId, decision })
+        const result = await processWithdrawalRequest({
+          withdrawalId,
+          decision,
+          rejectionReason,
+        })
 
         if (!result.success) {
           // Revert to pending on failure

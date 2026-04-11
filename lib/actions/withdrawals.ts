@@ -2,6 +2,8 @@
 
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { sendWithdrawalApprovedEmail } from '@/lib/email/send-withdrawal-approved'
+import { sendWithdrawalRejectedEmail } from '@/lib/email/send-withdrawal-rejected'
 
 const withdrawalSchema = z.object({
   network: z.enum(['trc20', 'bep20']),
@@ -322,6 +324,7 @@ export async function getAdminWithdrawals(input?: AdminPaginationInput) {
 export async function processWithdrawalRequest(input: {
   withdrawalId: string
   decision: 'approved' | 'rejected'
+  rejectionReason?: string
 }) {
   const supabase = await createClient()
   const {
@@ -335,15 +338,77 @@ export async function processWithdrawalRequest(input: {
     }
   }
 
+  const shouldSendDecisionEmail = input.decision === 'approved' || input.decision === 'rejected'
+  let decisionEmailPayload:
+    | {
+        to: string
+        fullName: string | null
+        amountUsdt: number
+        network: 'trc20' | 'bep20'
+        walletAddress: string
+      }
+    | null = null
+
+  if (shouldSendDecisionEmail) {
+    const { data: withdrawalData, error: withdrawalDataError } = await supabase
+      .from('withdrawals')
+      .select(
+        'amount_usdt, network, wallet_address, profile:profiles!withdrawals_user_id_fkey(full_name, email)'
+      )
+      .eq('id', input.withdrawalId)
+      .maybeSingle()
+
+    if (withdrawalDataError) {
+      console.error('Failed to load withdrawal data for email', withdrawalDataError)
+    } else {
+      const profileRaw = withdrawalData?.profile
+      const profile = Array.isArray(profileRaw) ? profileRaw[0] : profileRaw
+
+      if (profile?.email) {
+        decisionEmailPayload = {
+          to: profile.email,
+          fullName: profile.full_name,
+          amountUsdt: Number(withdrawalData?.amount_usdt ?? 0),
+          network: (withdrawalData?.network as 'trc20' | 'bep20') ?? 'trc20',
+          walletAddress: String(withdrawalData?.wallet_address ?? ''),
+        }
+      }
+    }
+  }
+
   const { error } = await supabase.rpc('process_withdrawal_request', {
     p_withdrawal_id: input.withdrawalId,
     p_decision: input.decision,
+    p_rejection_reason: input.decision === 'rejected' ? input.rejectionReason?.trim() || null : null,
   })
 
   if (error) {
     return {
       success: false as const,
       error: mapDbErrorToArabic(error.message),
+    }
+  }
+
+  if (decisionEmailPayload) {
+    try {
+      const processedAt = new Date().toISOString()
+
+      if (input.decision === 'approved') {
+        await sendWithdrawalApprovedEmail({
+          ...decisionEmailPayload,
+          processedAt,
+        })
+      }
+
+      if (input.decision === 'rejected') {
+        await sendWithdrawalRejectedEmail({
+          ...decisionEmailPayload,
+          processedAt,
+          rejectionReason: input.rejectionReason,
+        })
+      }
+    } catch (emailError) {
+      console.error('Failed to send withdrawal decision email', emailError)
     }
   }
 
