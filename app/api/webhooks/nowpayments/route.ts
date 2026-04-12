@@ -94,13 +94,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true }, { status: 200 })
     }
 
-    if (parsedBody.payment_status !== "finished") {
+    const payment_status = parsedBody.payment_status
+    const actually_paid = toSafeAmount(parsedBody.actually_paid)
+
+    if (
+      (payment_status === "finished" || payment_status === "partially_paid") &&
+      actually_paid > 0
+    ) {
+      // Continue processing.
+    } else {
       return NextResponse.json({ ok: true }, { status: 200 })
     }
 
     const orderId = parsedBody.order_id
     const paymentId = String(parsedBody.payment_id ?? "")
-    const actuallyPaid = toSafeAmount(parsedBody.actually_paid)
+    const actuallyPaid = actually_paid
 
     if (!orderId || !paymentId || actuallyPaid <= 0) {
       console.error("NOWPayments webhook missing required fields", {
