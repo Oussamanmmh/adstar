@@ -247,7 +247,7 @@ export default function WithdrawPage() {
               <Wallet className="h-5 w-5" />
               طلب سحب جديد
             </CardTitle>
-            <CardDescription>الحد الأدنى للسحب هو 5 USDT. سيتم تنفيذ التحويل يدويا من قبل الإدارة.</CardDescription>
+            <CardDescription>الحد الأدنى للسحب هو 5 USDT. سوف يصل السحب خلال ٤٨ ساعه.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (

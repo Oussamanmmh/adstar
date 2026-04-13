@@ -159,6 +159,17 @@ export async function POST(request: Request) {
 
     if (incrementBalanceError) {
       console.error("Failed to increment balance", incrementBalanceError)
+
+      // Roll back inserted deposit so a retry can process this payment again.
+      const { error: rollbackDepositError } = await admin
+        .from("deposits")
+        .delete()
+        .eq("tx_hash", paymentId)
+
+      if (rollbackDepositError) {
+        console.error("Failed to rollback deposit after increment failure", rollbackDepositError)
+      }
+
       return NextResponse.json({ ok: true }, { status: 200 })
     }
 
