@@ -46,9 +46,24 @@ export async function POST(request: Request) {
 
     const payCurrency = network === "trc20" ? "usdttrc20" : "usdtbsc"
 
+    const minRes = await fetch(
+      `https://api.nowpayments.io/v1/min-amount?currency_from=${payCurrency}&currency_to=${payCurrency}`,
+      {
+        headers: {
+          "x-api-key": apiKey,
+        },
+        cache: "no-store",
+      },
+    )
+
+    const minJson = await minRes.json().catch(() => null)
+    const rawMinAmount = Number(minJson?.min_amount)
+    const minAmount = Number.isFinite(rawMinAmount) && rawMinAmount > 0 ? rawMinAmount : 10
+    const bufferedAmount = Math.ceil(minAmount * 1.05)
+
     const nowPaymentsPayload = {
-      price_amount: 10000,
-      price_currency: "usd",
+      price_amount: bufferedAmount,
+      price_currency: payCurrency,
       pay_currency: payCurrency,
       ipn_callback_url: `${appUrl}/api/webhooks/nowpayments`,
       order_id: userId,
