@@ -98,10 +98,10 @@ export async function POST(request: Request) {
     const actually_paid = toSafeAmount(parsedBody.actually_paid)
 
     if (
-      (payment_status === "finished" || payment_status === "partially_paid") &&
-      actually_paid > 0
+      (payment_status === "finished" || payment_status === "partially_paid")
+      && actually_paid > 0
     ) {
-      // Continue processing.
+      // Continue processing valid paid events.
     } else {
       return NextResponse.json({ ok: true }, { status: 200 })
     }
