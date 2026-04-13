@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { verifyTRC20Transaction, verifyBEP20Transaction } from '@/lib/verify-deposit'
+import { sendDepositConfirmationEmail } from '@/lib/email/send-deposit-confirmation'
 import type { SubmitDepositResult } from '@/lib/types'
 
 const depositSchema = z.object({
@@ -132,6 +133,29 @@ export async function submitDeposit(
     amount_usdt: amount,
     source:      'deposit',
   })
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const recipientEmail = profile?.email ?? user.email
+
+  if (recipientEmail) {
+    try {
+      await sendDepositConfirmationEmail({
+        to: recipientEmail,
+        fullName: profile?.full_name,
+        amountUsdt: amount,
+        txHash: cleanHash,
+        network,
+        confirmedAt: new Date().toISOString(),
+      })
+    } catch (emailError) {
+      console.error('[deposit] failed to send confirmation email:', emailError)
+    }
+  }
 
   return { success: true, amount }
 }

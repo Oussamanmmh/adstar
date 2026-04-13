@@ -63,6 +63,40 @@ function isMatchingSignature(rawBody: string, signature: string | null, secret: 
   }
 }
 
+async function getUserEmailForDeposit(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  userId: string,
+): Promise<{ email: string | null; fullName: string | null }> {
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("email, full_name")
+    .eq("id", userId)
+    .maybeSingle()
+
+  if (profileError) {
+    console.error("Failed to fetch profile for deposit email", profileError)
+  }
+
+  const profileEmail = profile?.email?.trim() || null
+  const fullName = profile?.full_name ?? null
+
+  if (profileEmail) {
+    return { email: profileEmail, fullName }
+  }
+
+  const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(userId)
+
+  if (authUserError) {
+    console.error("Failed to fetch auth user for deposit email", authUserError)
+    return { email: null, fullName }
+  }
+
+  return {
+    email: authUserData.user?.email?.trim() || null,
+    fullName,
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const secret = process.env.NOWPAYMENTS_IPN_SECRET
@@ -184,19 +218,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true }, { status: 200 })
     }
 
-    const { data: profile, error: profileError } = await admin
-      .from("profiles")
-      .select("email, full_name")
-      .eq("id", orderId)
-      .maybeSingle()
+    const { email, fullName } = await getUserEmailForDeposit(admin, orderId)
 
-    if (profileError) {
-      console.error("Failed to fetch profile for deposit email", profileError)
-    } else if (profile?.email) {
+    if (email) {
       try {
         await sendDepositConfirmationEmail({
-          to: profile.email,
-          fullName: profile.full_name,
+          to: email,
+          fullName,
           amountUsdt: actuallyPaid,
           txHash: paymentId,
           network,
