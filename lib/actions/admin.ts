@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 
 type AdminCheck =
   | {
@@ -415,6 +416,61 @@ export async function setUserBanStatus(input: { userId: string; isBanned: boolea
     }
   }
 
+  revalidatePath('/admin/users')
+  revalidatePath(`/admin/users/${input.userId}`)
+
+  return {
+    success: true as const,
+  }
+}
+
+export async function deleteAdminUser(input: { userId: string }) {
+  const admin = await requireAdmin()
+  if (!admin.ok) {
+    return {
+      success: false as const,
+      error: admin.error,
+    }
+  }
+
+  const { data: targetUser, error: targetError } = await admin.supabase
+    .from('profiles')
+    .select('id, is_admin')
+    .eq('id', input.userId)
+    .maybeSingle()
+
+  if (targetError || !targetUser) {
+    return {
+      success: false as const,
+      error: 'تعذر العثور على المستخدم المطلوب',
+    }
+  }
+
+  if (targetUser.is_admin) {
+    return {
+      success: false as const,
+      error: 'لا يمكن حذف حساب إداري',
+    }
+  }
+
+  if (admin.userId === input.userId) {
+    return {
+      success: false as const,
+      error: 'لا يمكنك حذف حسابك بنفسك',
+    }
+  }
+
+  const supabaseAdmin = createSupabaseAdminClient()
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(input.userId)
+
+  if (error) {
+    return {
+      success: false as const,
+      error: 'تعذر حذف المستخدم حالياً',
+    }
+  }
+
+  revalidatePath('/admin')
   revalidatePath('/admin/users')
   revalidatePath(`/admin/users/${input.userId}`)
 

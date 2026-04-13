@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useDeferredValue, useOptimistic, useReducer, useTransition, startTransition } from "react"
 import Link from "next/link"
-import { setUserBanStatus, type AdminUserRow } from "@/lib/actions/admin"
+import { deleteAdminUser, setUserBanStatus, type AdminUserRow } from "@/lib/actions/admin"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { toast } from "sonner"
-import { Eye, Loader2, Search, Shield, User as UserIcon, UserCheck, UserX } from "lucide-react"
+import { Eye, Loader2, Search, Shield, Trash2, User as UserIcon, UserCheck, UserX } from "lucide-react"
 import { AdminTablePagination } from "./AdminTablePagination"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,11 +42,16 @@ interface Props {
 
 // ─── Optimistic reducer ───────────────────────────────────────────────────────
 
-type OptimisticAction = { type: "TOGGLE_BAN"; id: string; isBanned: boolean }
+type OptimisticAction =
+  | { type: "TOGGLE_BAN"; id: string; isBanned: boolean }
+  | { type: "REMOVE_USER"; id: string }
 
 function optimisticReducer(users: AdminUserRow[], action: OptimisticAction): AdminUserRow[] {
   if (action.type === "TOGGLE_BAN") {
     return users.map((u) => (u.id === action.id ? { ...u, is_banned: action.isBanned } : u))
+  }
+  if (action.type === "REMOVE_USER") {
+    return users.filter((u) => u.id !== action.id)
   }
   return users
 }
@@ -75,6 +80,12 @@ export function AdminUsersClient({
   )
 
   const [isBanning, startBanTransition] = useTransition()
+  const [isDeleting, startDeleteTransition] = useTransition()
+
+  const [targetDeleteUser, setTargetDeleteUser] = useReducer(
+    (_: AdminUserRow | null, next: AdminUserRow | null) => next,
+    null,
+  )
 
   if (fetchError) toast.error(fetchError)
 
@@ -116,6 +127,30 @@ export function AdminUsersClient({
   const handleCloseDialog = useCallback((open: boolean) => {
     if (!open && !isBanning) setTargetUser(null)
   }, [isBanning])
+
+  const handleConfirmDeleteUser = useCallback(() => {
+    if (!targetDeleteUser) return
+
+    startDeleteTransition(async () => {
+      const result = await deleteAdminUser({ userId: targetDeleteUser.id })
+
+      if (!result.success) {
+        toast.error(result.error)
+        return
+      }
+
+      startTransition(() =>
+        dispatchOptimistic({ type: "REMOVE_USER", id: targetDeleteUser.id }),
+      )
+
+      toast.success("تم حذف المستخدم بنجاح")
+      setTargetDeleteUser(null)
+    })
+  }, [targetDeleteUser])
+
+  const handleCloseDeleteDialog = useCallback((open: boolean) => {
+    if (!open && !isDeleting) setTargetDeleteUser(null)
+  }, [isDeleting])
 
   return (
     <div className="space-y-6">
@@ -169,6 +204,7 @@ export function AdminUsersClient({
                       key={user.id}
                       user={user}
                       onBanClick={setTargetUser}
+                      onDeleteClick={setTargetDeleteUser}
                     />
                   ))
                 )}
@@ -214,6 +250,30 @@ export function AdminUsersClient({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!targetDeleteUser} onOpenChange={handleCloseDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف المستخدم</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`هل أنت متأكد من حذف ${targetDeleteUser?.full_name || "هذا المستخدم"}؟ لا يمكن التراجع عن هذا الإجراء.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteUser} disabled={isDeleting}>
+              {isDeleting ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  جارٍ الحذف...
+                </span>
+              ) : (
+                "تأكيد الحذف"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -223,9 +283,10 @@ export function AdminUsersClient({
 interface UserRowProps {
   user: AdminUserRow
   onBanClick: (user: AdminUserRow) => void
+  onDeleteClick: (user: AdminUserRow) => void
 }
 
-const UserRow = memo(function UserRow({ user, onBanClick }: UserRowProps) {
+const UserRow = memo(function UserRow({ user, onBanClick, onDeleteClick }: UserRowProps) {
   return (
     <TableRow>
       <TableCell>
@@ -270,23 +331,30 @@ const UserRow = memo(function UserRow({ user, onBanClick }: UserRowProps) {
           </Button>
 
           {!user.is_admin && (
-            <Button
-              size="sm"
-              variant={user.is_banned ? "outline" : "destructive"}
-              onClick={() => onBanClick(user)}
-            >
-              {user.is_banned ? (
-                <>
-                  <UserCheck className="h-4 w-4 mr-1" />
-                  إلغاء الحظر
-                </>
-              ) : (
-                <>
-                  <UserX className="h-4 w-4 mr-1" />
-                  حظر
-                </>
-              )}
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant={user.is_banned ? "outline" : "destructive"}
+                onClick={() => onBanClick(user)}
+              >
+                {user.is_banned ? (
+                  <>
+                    <UserCheck className="h-4 w-4 mr-1" />
+                    إلغاء الحظر
+                  </>
+                ) : (
+                  <>
+                    <UserX className="h-4 w-4 mr-1" />
+                    حظر
+                  </>
+                )}
+              </Button>
+
+              <Button size="sm" variant="outline" onClick={() => onDeleteClick(user)}>
+                <Trash2 className="h-4 w-4 mr-1" />
+                حذف
+              </Button>
+            </>
           )}
         </div>
       </TableCell>
