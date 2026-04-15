@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { InstallAppButton } from "@/components/pwa/install-app-button"
 import { 
   Star, 
   LayoutDashboard, 
@@ -174,6 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
 
           <div className="flex items-center gap-3">
+            <InstallAppButton className="md:hidden" />
             <div className="text-right">
               <div className="text-sm font-medium hidden sm:block">{user.fullName}</div>
               <div className="text-xs text-primary font-semibold">${user.balance_usdt.toFixed(2)}</div>
