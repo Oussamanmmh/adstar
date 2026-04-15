@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { AuthProvider } from '@/lib/auth-context'
+import { ServiceWorkerRegister } from '@/components/pwa/service-worker-register'
 import './globals.css'
 
 const geist = Geist({ 
@@ -16,6 +17,23 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Adstar - اربح من تقييم الفيديوهات',
   description: 'اشترك في باقة، قيّم الفيديوهات يومياً، واربح USDT. بسيط وشفاف ومجزٍ.',
+  applicationName: 'Adstar',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '192x192', type: 'image/png' }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Adstar',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 }
 
 export const viewport: Viewport = {
@@ -35,6 +53,7 @@ export default function RootLayout({
         <AuthProvider>
           {children}
         </AuthProvider>
+        <ServiceWorkerRegister />
         <Toaster 
           position="top-left" 
           toastOptions={{
