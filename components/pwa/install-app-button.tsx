@@ -50,10 +50,16 @@ export function InstallAppButton({ className }: InstallAppButtonProps) {
     }
   }, [])
 
-  const canInstall = useMemo(() => isAndroid && !isInstalled && Boolean(deferredPrompt), [deferredPrompt, isAndroid, isInstalled])
+  const canShowInstallAction = useMemo(() => isAndroid && !isInstalled, [isAndroid, isInstalled])
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
+      if (!window.isSecureContext) {
+        toast.error('التثبيت يتطلب HTTPS أو فتح الموقع عبر localhost')
+        return
+      }
+
+      toast.message('إذا لم تظهر نافذة التثبيت تلقائياً، افتح قائمة المتصفح ثم اختر تثبيت التطبيق')
       return
     }
 
@@ -69,7 +75,7 @@ export function InstallAppButton({ className }: InstallAppButtonProps) {
     setDeferredPrompt(null)
   }
 
-  if (!canInstall) {
+  if (!canShowInstallAction) {
     return null
   }
 

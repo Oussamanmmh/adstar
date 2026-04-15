@@ -4,7 +4,13 @@ import { useEffect } from 'react'
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '::1'
+    const shouldRegister = process.env.NODE_ENV === 'production' || isLocalhost
+
+    if (!shouldRegister) {
       return
     }
 
