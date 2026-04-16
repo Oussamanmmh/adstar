@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -31,7 +31,6 @@ const registerSchema = z
 
 export default function RegisterPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { register, isAuthenticated, user } = useAuth()
 
   const [fullName, setFullName] = useState("")
@@ -56,14 +55,14 @@ export default function RegisterPage() {
   }, [isAuthenticated, user, router])
 
   useEffect(() => {
-    const ref = searchParams.get("ref")
+    const ref = new URLSearchParams(window.location.search).get("ref")
     if (!ref) return
 
     const normalized = ref.trim().toUpperCase()
     if (/^[A-Z0-9]{8}$/.test(normalized)) {
       setReferralCode(normalized)
     }
-  }, [searchParams])
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
