@@ -93,46 +93,25 @@ export async function submitDeposit(
   // Never round up credited value; truncate to 2 decimals to match DB precision.
   const amount = Math.floor(verification.amount * 100) / 100
 
-  // ── 5. Record deposit (unique constraint on tx_hash guards race conditions) ─
-  const { error: insertErr } = await supabase.from('deposits').insert({
-    user_id:      user.id,
-    network,
-    tx_hash:      cleanHash,
-    amount_usdt:  amount,
-    status:       'confirmed',
-    confirmed_at: new Date().toISOString(),
+  // ── 5. Apply confirmed deposit atomically (balance + earnings + referral) ─
+  const confirmedAt = new Date().toISOString()
+  const { error: applyErr } = await supabase.rpc('apply_confirmed_deposit', {
+    p_user_id: user.id,
+    p_network: network,
+    p_tx_hash: cleanHash,
+    p_amount: amount,
+    p_confirmed_at: confirmedAt,
   })
 
-  if (insertErr) {
-    // 23505 = unique_violation → tx_hash already claimed by a concurrent request
-    if (insertErr.code === '23505') {
+  if (applyErr) {
+    // 23505 = unique_violation (duplicate tx hash or already-rewarded referral record)
+    if (applyErr.code === '23505') {
       return { success: false, error: 'تم استخدام رمز المعاملة هذا مسبقاً' }
     }
-    console.error('[deposit] insert error:', insertErr)
+
+    console.error('[deposit] apply_confirmed_deposit error:', applyErr)
     return { success: false, error: 'فشل تسجيل الإيداع. يرجى التواصل مع الدعم' }
   }
-
-  // ── 6. Atomically increment balance ────────────────────────────────────────
-  const { error: balErr } = await supabase.rpc('increment_balance', {
-    p_user_id: user.id,
-    p_amount:  amount,
-  })
-
-  if (balErr) {
-    console.error('[deposit] increment_balance error:', balErr)
-    // Deposit row is already recorded; admin can reconcile manually.
-    return {
-      success: false,
-      error: 'تم تسجيل الإيداع لكن فشل تحديث الرصيد. تواصل مع الدعم وسيتم حل المشكلة',
-    }
-  }
-
-  // ── 7. Earnings history record ─────────────────────────────────────────────
-  await supabase.from('earnings').insert({
-    user_id:     user.id,
-    amount_usdt: amount,
-    source:      'deposit',
-  })
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -150,7 +129,7 @@ export async function submitDeposit(
         amountUsdt: amount,
         txHash: cleanHash,
         network,
-        confirmedAt: new Date().toISOString(),
+        confirmedAt,
       })
     } catch (emailError) {
       console.error('[deposit] failed to send confirmation email:', emailError)

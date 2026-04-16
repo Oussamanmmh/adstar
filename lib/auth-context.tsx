@@ -8,6 +8,7 @@ interface RegisterParams {
   email: string
   password: string
   fullName: string
+  referralCode?: string
 }
 
 interface AuthResult {
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (authUserId: string): Promise<User | null> => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, wallet_address, balance_usdt, is_admin, is_banned, created_at")
+        .select("id, full_name, email, wallet_address, balance_usdt, is_admin, is_banned, referral_code, referred_by, created_at")
         .eq("id", authUserId)
         .maybeSingle()
 
@@ -52,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         balance_usdt: Number(data.balance_usdt ?? 0),
         isAdmin: !!data.is_admin,
         isBanned: !!data.is_banned,
+        inviteCode: data.referral_code ?? undefined,
+        referredBy: data.referred_by ?? undefined,
         createdAt: data.created_at,
       }
     },
@@ -172,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const register = useCallback(
-    async ({ email, password, fullName }: RegisterParams): Promise<AuthResult> => {
+    async ({ email, password, fullName, referralCode }: RegisterParams): Promise<AuthResult> => {
       const normalizedEmail = email.trim().toLowerCase()
 
       const response = await fetch("/api/auth/register", {
@@ -184,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: normalizedEmail,
           password,
           fullName,
+          referralCode: referralCode?.trim() ? referralCode.trim().toUpperCase() : undefined,
         }),
       })
 

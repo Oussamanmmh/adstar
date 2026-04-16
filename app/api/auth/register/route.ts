@@ -7,6 +7,12 @@ const registerRequestSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   fullName: z.string().trim().min(2),
+  referralCode: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .refine((value) => value === "" || /^[A-Z0-9]{8}$/.test(value), "invalid referral code")
+    .optional(),
 })
 
 export async function POST(request: Request) {
@@ -18,8 +24,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "بيانات التسجيل غير صالحة" }, { status: 400 })
     }
 
-    const { email, password, fullName } = parsed.data
+    const { email, password, fullName, referralCode } = parsed.data
     const admin = createSupabaseAdminClient()
+
+    let normalizedReferralCode: string | undefined
+    if (referralCode && referralCode.trim() !== "") {
+      normalizedReferralCode = referralCode.trim().toUpperCase()
+
+      const { data: inviter, error: inviterError } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("referral_code", normalizedReferralCode)
+        .maybeSingle()
+
+      if (inviterError || !inviter) {
+        return NextResponse.json({ error: "رمز الإحالة غير صحيح" }, { status: 400 })
+      }
+    }
 
     const { error } = await admin.auth.admin.createUser({
       email: email.trim().toLowerCase(),
@@ -27,6 +48,7 @@ export async function POST(request: Request) {
       email_confirm: true,
       user_metadata: {
         full_name: fullName,
+        ...(normalizedReferralCode ? { referral_code: normalizedReferralCode } : {}),
       },
     })
 

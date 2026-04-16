@@ -63,6 +63,27 @@ function ReferralBadge({ code }: { code: string }) {
   )
 }
 
+function ReferralLinkBadge({ link }: { link: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={copy}
+      className="rounded-full border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+    >
+      {copied ? <CheckCheck size={12} /> : <Copy size={12} />}
+      نسخ رابط الدعوة
+    </Button>
+  )
+}
+
 type MenuItem = { icon: React.ElementType; label: string; href?: string; badge?: string }
 
 const menuGroups: { title: string; items: MenuItem[] }[] = [
@@ -121,9 +142,14 @@ export default function ProfilePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const referralCode = useMemo(() => {
-    if (!user?.id) return '------'
-    return user.id.slice(0, 6).toUpperCase()
-  }, [user?.id])
+    if (!user?.inviteCode) return '--------'
+    return user.inviteCode
+  }, [user?.inviteCode])
+
+  const referralLink = useMemo(() => {
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/auth/register?ref=${referralCode}`
+  }, [referralCode])
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -213,7 +239,10 @@ export default function ProfilePage() {
         <div className="relative overflow-hidden px-5 pb-6 pt-10">
           <div className="pointer-events-none absolute -top-10 left-1/2 h-40 w-64 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
           <div className="relative flex items-start justify-between">
-            <ReferralBadge code={referralCode} />
+            <div className="flex flex-col items-start gap-2">
+              <ReferralBadge code={referralCode} />
+              {referralLink ? <ReferralLinkBadge link={referralLink} /> : null}
+            </div>
             <div className="text-left">
               <p className="text-sm font-semibold">{user.email}</p>
               <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-cyan/30 bg-cyan/10 px-2 py-0.5 text-[10px] font-bold text-cyan">

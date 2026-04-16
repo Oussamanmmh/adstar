@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,12 @@ const registerSchema = z
     email: z.string().email("يرجى إدخال بريد إلكتروني صحيح"),
     password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
     confirmPassword: z.string().min(6, "تأكيد كلمة المرور مطلوب"),
+    referralCode: z
+      .string()
+      .trim()
+      .transform((value) => value.toUpperCase())
+      .refine((value) => value === "" || /^[A-Z0-9]{8}$/.test(value), "رمز الإحالة غير صالح")
+      .optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "كلمتا المرور غير متطابقتين",
@@ -25,12 +31,14 @@ const registerSchema = z
 
 export default function RegisterPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { register, isAuthenticated, user } = useAuth()
 
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [referralCode, setReferralCode] = useState("")
 
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -47,6 +55,16 @@ export default function RegisterPage() {
     }
   }, [isAuthenticated, user, router])
 
+  useEffect(() => {
+    const ref = searchParams.get("ref")
+    if (!ref) return
+
+    const normalized = ref.trim().toUpperCase()
+    if (/^[A-Z0-9]{8}$/.test(normalized)) {
+      setReferralCode(normalized)
+    }
+  }, [searchParams])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -55,6 +73,7 @@ export default function RegisterPage() {
       email,
       password,
       confirmPassword,
+      referralCode,
     })
 
     if (!validated.success) {
@@ -68,6 +87,7 @@ export default function RegisterPage() {
       email: validated.data.email,
       password: validated.data.password,
       fullName: validated.data.fullName,
+      referralCode: validated.data.referralCode || undefined,
     })
 
     if (result.success) {
@@ -131,6 +151,19 @@ export default function RegisterPage() {
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
+          </div>
+
+          <div className="relative">
+            <Input
+              type="text"
+              placeholder="رمز الإحالة (اختياري)"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              autoComplete="off"
+              inputMode="text"
+              maxLength={8}
+              className="h-14 bg-background/60 border-border rounded-xl text-foreground placeholder:text-muted-foreground uppercase tracking-wider"
+            />
           </div>
 
           <div className="relative">
